@@ -6,7 +6,8 @@ Telegram-based Home Server Agent (PoC) - reliable and maintainable bot for serve
 
 - **Telegram Control**: Receive commands and send notifications
 - **Tools**: Execute terminal commands via AI
-- **Health Checks**: Periodically monitor server health and send notifications if issues are detected
+- **Health Checks**: Periodically monitor server health and send notifications if issues are
+  detected
 
 ## Screenshots
 

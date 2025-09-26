@@ -13,6 +13,8 @@ import { Tool } from "ai";
 import { Experimental_Agent as Agent } from "ai";
 import { stepCountIs } from "ai";
 import { SystemInfo } from "../system-info/system-info.ts";
+import type { FactsStorage } from "../core/types.ts";
+import { createAddFactTool, createDeleteFactTool, createUpdateFactTool } from "./tools/facts.ts";
 
 /**
  * Public interface for the Agent facade.
@@ -37,11 +39,13 @@ export function createAgent({
   terminalTool,
   conversationHistory,
   systemInfo,
+  factsStorage,
 }: {
   llmModel: LanguageModelV2;
   terminalTool: Tool;
   conversationHistory: ConversationHistory;
   systemInfo: SystemInfo;
+  factsStorage: FactsStorage;
 }): MainAgent {
   // Return agent implementation
   return {
@@ -63,9 +67,12 @@ export function createAgent({
       try {
         const agent = new Agent({
           model: llmModel,
-          system: generateSystemPrompt({ serverInfo: systemInfo }),
+          system: await generateSystemPrompt({ serverInfo: systemInfo, factsStorage }),
           tools: {
             terminal: terminalTool,
+            add_fact: createAddFactTool(factsStorage),
+            update_fact: createUpdateFactTool(factsStorage),
+            delete_fact: createDeleteFactTool(factsStorage),
           },
           stopWhen: [
             stepCountIs(30),
@@ -100,7 +107,9 @@ export function createAgent({
   };
 }
 
-function generateSystemPrompt({ serverInfo }: { serverInfo: SystemInfo }) {
+async function generateSystemPrompt(
+  { serverInfo, factsStorage }: { serverInfo: SystemInfo; factsStorage: FactsStorage },
+) {
   return `# System Prompt for Server Agent (Condensed)
 
 ## Role & Mission
@@ -110,7 +119,7 @@ You are a reliable SRE/DevOps agent named **Severin** running on the **target se
 ## Inputs
 
 * **SERVER_INFO** — structured information about OS/distribution, resources, versions, node roles, etc. (source of truth).
-* **FACTS** — stored facts (accepted decisions, policies, paths, environment variables, contacts, etc.). Can be updated via \`update_facts\` tool.
+* **FACTS** — stored facts (accepted decisions, policies, paths, environment variables, contacts, etc.). Can be updated via \`add_fact\`, \`update_fact\`, \`delete_fact\` tools.
 * **USER_REQUEST** — current user task (natural language).
 
 Always consider \`SERVER_INFO\` and \`FACTS\`. If something contradicts reality, do a quick verification on the system (not via the user) and report the discrepancy.
@@ -119,10 +128,12 @@ Always consider \`SERVER_INFO\` and \`FACTS\`. If something contradicts reality,
 ${serverInfo.toMarkdown()}
 
 ## FACTS
-<no facts>
+${await factsStorage.toMarkdown()}
 
 Facts Management Tools:
-* \`update_facts\` — update facts.
+* \`add_fact\` — add a new fact.
+* \`update_fact\` — update an existing fact.
+* \`delete_fact\` — delete a fact.
 
 ## Global Rules
 

@@ -202,6 +202,21 @@
   - Telegram handlers use MainAgent; scheduler uses AuditTask + DiagnoseTask.
   - Conversation history limits and tool orchestration managed per component.
 
+### ✅ FR-15 Persistent Facts Storage and Management
+
+- **Description:** Agent maintains persistent facts storage that can be updated via LLM tools and
+  included in system prompts for contextual awareness.
+- **Use case:** Agent can remember important information about the system and environment, improving
+  contextual relevance of responses and allowing persistent knowledge management.
+- **Criteria:**
+  - File-based storage in `data/facts.jsonl` using JSONL format.
+  - Facts include `id`, `content`, `timestamp` fields.
+  - LLM tools: `add_fact`, `update_fact`, `delete_fact`, `get_all_facts`.
+  - Facts integrated into system prompt under dedicated "## FACTS" section.
+  - Tools available only through LLM; no direct user access.
+  - Storage operations are atomic and logged.
+  - Facts persist across agent restarts.
+
 ### ❌ FR-13 Additional System Prompt Instructions
 
 - **Description:** Support for additional custom instructions in LLM system prompt via environment
@@ -268,3 +283,6 @@ System accepted when:
     DiagnoseTask for diagnosis; clean separation with appropriate tools per context.
 13. ❌ Additional system prompt instructions loaded from `AGENT_LLM_ADDITIONAL_PROMPT` env var and
     integrated into LLM system prompt in dedicated section; empty when unset.
+14. ✅ Persistent facts storage with LLM tools: facts stored in `data/facts.jsonl`, managed via
+    `add_fact`, `update_fact`, `delete_fact`, `get_all_facts` tools, integrated into system prompts
+    using structured markdown formatting.

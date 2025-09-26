@@ -119,7 +119,7 @@ class HealthScheduler {
       const chatId = this.state.config.telegram.ownerIds[0];
       logOutgoingMessageNoContext("sendMessage", chatId, diagnoseSummary.mostLikelyHypothesis);
       try {
-        const safeText = markdownToTelegramMarkdownV2('🚨 ' + diagnoseSummary.mostLikelyHypothesis);
+        const safeText = markdownToTelegramMarkdownV2("🚨 " + diagnoseSummary.mostLikelyHypothesis);
         await this.state.bot.api.sendMessage(chatId, safeText, { parse_mode: "MarkdownV2" });
         this.state.history.appendMessage("assistant", diagnoseSummary.mostLikelyHypothesis);
         log({

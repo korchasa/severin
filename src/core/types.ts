@@ -77,6 +77,23 @@ export interface IPromptRenderer {
   render(toolsInfo: string): string;
 }
 
+// Facts types
+export interface Fact {
+  readonly id: string;
+  readonly content: string;
+  readonly ts: string;
+}
+
+// Facts storage interface
+export interface FactsStorage {
+  add(fact: Omit<Fact, "id" | "ts">): Promise<Fact>;
+  getAll(): Promise<readonly Fact[]>;
+  getById(id: string): Promise<Fact | null>;
+  update(id: string, content: string): Promise<Fact | null>;
+  delete(id: string): Promise<boolean>;
+  toMarkdown(): Promise<string>;
+}
+
 // Command types
 export interface CommandDef<A> {
   readonly name: string;

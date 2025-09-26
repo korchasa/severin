@@ -42,15 +42,18 @@ src/
 │   ├── audit-task.ts        # AuditTask for metrics analysis
 │   ├── diagnose-task.ts     # DiagnoseTask for problem diagnosis
 │   ├── llm.ts               # LLM interface
-│   ├── prompt-renderer.ts   # System prompt composition and rendering
-│   ├── prompt-renderer.test.ts
+│   ├── facts/
+│   │   ├── storage.ts         # Persistent facts storage implementation
+│   │   └── storage.test.ts    # Facts storage unit tests
 │   ├── history/
 │   │   ├── service.ts       # ConversationHistory service
 │   │   └── service.test.ts
 │   └── tools/
 │       ├── terminal.ts      # Terminal command execution tool
 │       ├── terminal.test.ts
-       └── stop.ts          # Stop conversation tool
+│       ├── stop.ts          # Stop conversation tool
+│       ├── facts.ts           # Facts management tools for LLM
+      └── facts.test.ts      # Facts tools unit tests
 ├── config/
 │   ├── config.ts            # Configuration loading and validation
 │   ├── config.test.ts       # Configuration unit tests

@@ -33,10 +33,12 @@ graph TD
   subgraph Agent Components
     MAIN[MainAgent] --> LLM[LLM Model]
     MAIN --> MEM[ConversationHistory]
+    MAIN --> FACTS[Facts Storage]
     AUDIT[AuditTask] --> LLM
     DIAG[DiagnoseTask] --> LLM
     LLM --> TTERM[Terminal Tool]
     LLM --> STOP[Stop Tool]
+    LLM --> FACTS
     DIAG --> TTERM
   end
 
@@ -58,7 +60,7 @@ graph TD
 
 ### 1.2. Main Flows
 
-- **Startup:** App launch → System Info Collector → system information → LLM system prompts.
+- **Startup:** App launch → System Info Collector → system information → Facts Storage init → LLM system prompts.
 - **User Interaction:** Telegram → long polling → auth → routing → handlers →
   MainAgent.processUserQuery → responses.
 - **Self-checks:** Scheduler (~hour + jitter) → Checks Engine → AuditTask.auditMetrics →
@@ -309,8 +311,8 @@ interface Check {
 - **Purpose:** Specialized agent components for different workflows: MainAgent for conversations,
   AuditTask for metrics analysis, DiagnoseTask for problem diagnosis.
 - **Components:**
-  - `MainAgent`: Handles user queries with conversation history, system info context, and general
-    tools.
+  - `MainAgent`: Handles user queries with conversation history, system info context, facts storage,
+    and general tools.
   - `AuditTask`: Processes metrics analysis for anomaly detection decisions with system awareness.
   - `DiagnoseTask`: Diagnoses root causes using terminal tool for investigation with full system
     context.
@@ -318,7 +320,7 @@ interface Check {
   - `ConversationHistory`: In-RAM conversation storage with configurable limits.
   - Vercel AI SDK agents with specialized prompts including comprehensive system information.
 - **Integration:**
-  - All agents receive `SystemInfo` instance for contextual awareness in prompts.
+  - All agents receive `SystemInfo` instance and `FactsStorage` for contextual awareness in prompts.
   - Telegram handlers use only `MainAgent.processUserQuery()`.
   - Scheduler uses `AuditTask.auditMetrics()` + `DiagnoseTask.diagnose()` with terminal tool access.
   - Each component manages appropriate tools and context.
@@ -340,7 +342,7 @@ interface Check {
 - Response formats: natural text for conversations, structured decisions for monitoring.
 - **Text Formatting:** `markdownToTelegramMarkdownV2` converts Markdown to Telegram format.
 
-### 4.12. LLM Tools
+### 4.11. LLM Tools
 
 - **Terminal Tool:**
   - Interface: `{ command: string, cwd?: string, reason: string }` →
@@ -357,7 +359,21 @@ interface Check {
 
 - **Registry:** Tools registered via Vercel AI SDK; accessible only through LLM agents.
 
-### 4.13. System Information Collector
+### 4.12. Facts Storage and Management
+
+- **Purpose:** Persistent storage for important system facts that can be updated and referenced by
+  the LLM for improved contextual awareness and knowledge management.
+- **Storage:** File-based storage in `data/facts.jsonl` using JSONL format for atomic operations.
+- **Data Structure:** Each fact contains `id`, `content`, `timestamp` fields with unique identifiers.
+- **LLM Tools:**
+  - `add_fact`: Adds new facts to storage with auto-generated IDs and timestamps.
+  - `update_fact`: Updates existing facts by ID with new content.
+  - `delete_fact`: Removes facts from storage by ID.
+- **Integration:** Facts are included in system prompts under dedicated "## FACTS" section and
+  automatically loaded during agent initialization.
+- **Persistence:** Facts survive agent restarts and are available across all agent components.
+
+### 4.14. System Information Collector
 
 - **Purpose:** Collects comprehensive host system information during startup for LLM context across
   all agent components.
@@ -376,7 +392,7 @@ interface Check {
 - **Integration:** Results formatted as markdown and included in system prompts for MainAgent,
   AuditTask, and DiagnoseTask for contextual awareness across all LLM interactions.
 
-### 4.14. Logging & Correlation
+### 4.15. Logging & Correlation
 
 - Console logs in pretty (default) or JSON format.
 - Pretty format: human-readable with colors, timestamps.
@@ -620,9 +636,10 @@ sequenceDiagram
 | FR-8 Config & secrets                          | 3.1.1, secret masking, createDefaultConfig() domain objects, caching, .env auto-loading                              |
 | FR-9 LLM via Internal Interface                | 4.10–4.11 (type contracts), Telegram Bot API                                                                         |
 | FR-10 Automatic Text Message Processing        | 4.3 (text handler), 5.4 (sequence), filters <2 chars                                                                 |
-| FR-11 System Information Collection at Startup | 4.13 (System Info Collector), 5.6 (sequence), integrated in all agent prompts (MainAgent, AuditTask, DiagnoseTask)   |
-| FR-12 Logger Format Configuration              | 4.14 (logging formats), environment variable `LOG_FORMAT`                                                            |
+| FR-11 System Information Collection at Startup | 4.14 (System Info Collector), 5.6 (sequence), integrated in all agent prompts (MainAgent, AuditTask, DiagnoseTask)   |
+| FR-12 Logger Format Configuration              | 4.15 (logging formats), environment variable `LOG_FORMAT`                                                            |
 | FR-14 Agent Facade Architecture                | 4.10 (Agent Facade), createAgent factory, ConversationHistory, LlmClient, PromptRenderer with SystemInfo integration |
+| FR-15 Persistent Facts Storage                 | 4.12 (Facts Storage and Management), integrated in MainAgent system prompts                                          |
 | NFR Performance                                | 30s tool timeouts, output limits                                                                                     |
 | NFR Reliability                                | simple periodic checks, history trimming                                                                             |
 | NFR Security                                   | 7 (owner access only, no secrets in logs)                                                                            |
@@ -641,8 +658,9 @@ src/
     audit-task.ts        # AuditTask for metrics analysis
     diagnose-task.ts     # DiagnoseTask for problem diagnosis
     llm.ts               # LLM interface
-    prompt-renderer.ts   # System prompt composition
-    prompt-renderer.test.ts
+    facts/
+      storage.ts         # Persistent facts storage implementation
+      storage.test.ts    # Facts storage unit tests
     history/
       service.ts         # ConversationHistory service
       service.test.ts
@@ -650,6 +668,8 @@ src/
       terminal.ts        # Terminal command execution tool
       terminal.test.ts
       stop.ts            # Stop conversation tool
+      facts.ts           # Facts management tools for LLM
+      facts.test.ts      # Facts tools unit tests
   config/
     config.ts            # Configuration loading and validation
     config.test.ts       # Configuration unit tests
@@ -702,6 +722,7 @@ src/
 - Terminal tool: accessible via agent facade; logging; no shell; limits.
 - Logs: pretty/JSON formats; agent operations logged with correlation IDs; secrets filtered.
 - Config: ENV-based with domain objects; caching; .env auto-loading with ENV override.
+- Facts storage: persistent facts storage with LLM tools (add_fact, update_fact, delete_fact) integrated into system prompts.
 
 ---
 

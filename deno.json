@@ -10,7 +10,8 @@
     "@std/assert": "https://deno.land/std@0.224.0/assert/mod.ts",
     "@std/path": "https://deno.land/std@0.224.0/path/mod.ts",
     "zod": "npm:zod@^4.1.11",
-    "yaml": "npm:yaml@^2.3.4"
+    "yaml": "npm:yaml@^2.3.4",
+    "nanoid": "npm:nanoid@^5.0.0"
   },
   "fmt": {
     "lineWidth": 100,

@@ -1,6 +1,13 @@
 <svg width="120" height="120" viewBox="0 0 1200 1200" xmlns="http://www.w3.org/2000/svg">
-    <path fill="#010f00" d="M0 0h1200v1200H0z" />
-    <text x="600" y="600" text-anchor="middle" dominant-baseline="middle" font-family="Trebuchet MS"
-        font-size="320" font-weight="900" fill="#41FF00">&gt;o_0 </text>
-
+  <path fill="#010f00" d="M0 0h1200v1200H0z" />
+  <text
+    x="600"
+    y="600"
+    text-anchor="middle"
+    dominant-baseline="middle"
+    font-family="Trebuchet MS"
+    font-size="320"
+    font-weight="900"
+    fill="#41FF00"
+  >&gt;o_0 </text>
 </svg>
