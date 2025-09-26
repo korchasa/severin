@@ -76,7 +76,9 @@ export class FileFactsStorage implements FactsStorage {
    * Saves facts to file
    */
   private async save(): Promise<void> {
-    const lines = this.facts.map((fact) => JSON.stringify(fact)).join("\n") + "\n";
+    const lines = this.facts.length > 0
+      ? this.facts.map((fact) => JSON.stringify(fact)).join("\n") + "\n"
+      : "";
 
     await Deno.writeTextFile(this.filePath, lines);
 
