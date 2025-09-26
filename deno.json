@@ -1,0 +1,27 @@
+{
+  "lock": { "path": "./deno.lock", "frozen": true },
+  "vendor": true,
+  "nodeModulesDir": "auto",
+  "imports": {
+    "ai": "npm:ai@^5.0.49",
+    "@ai-sdk/openai": "npm:@ai-sdk/openai@^2.0.32",
+    "@ai-sdk/provider": "npm:@ai-sdk/provider@^2.0.0",
+    "grammy": "https://deno.land/x/grammy@v1.38.2/mod.ts",
+    "@std/assert": "https://deno.land/std@0.224.0/assert/mod.ts",
+    "@std/path": "https://deno.land/std@0.224.0/path/mod.ts",
+    "zod": "npm:zod@^4.1.11",
+    "yaml": "npm:yaml@^2.3.4"
+  },
+  "fmt": {
+    "lineWidth": 100,
+    "indentWidth": 2,
+    "semiColons": true
+  },
+  "lint": {
+    "rules": {
+      "tags": ["recommended", "workspace"],
+      "include": ["no-import-prefix"],
+      "exclude": []
+    }
+  }
+}

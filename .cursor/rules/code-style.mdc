@@ -1,0 +1,50 @@
+# Code Style Rules (Telegram Bot API)
+> PROJECT MODE: PoC — prefer clarity and minimal viable design over completeness.
+
+## TypeScript
+- strict: true; no `any` (use `unknown` where truly unknown)
+- Interfaces over type aliases for objects; prefer union types over enums when simple
+- Inline argument objects for functions; avoid multiple positional params
+- `readonly` for immutable data; utility types (`Partial`, `Pick`, etc.)
+
+## Imports
+- Use bare specifiers for dependencies defined in deno.json/imports
+- Avoid direct jsr:/npm:/https: imports in source code
+- Example: `import { assertEquals } from "@std/assert";` instead of `import { assertEquals } from "jsr:@std/assert";`
+
+## Handlers and Middleware
+- Single `handleUpdate(update)` entry; route by typed discriminated unions
+- Middleware order: auth → rate limit → validate → business → reply
+- Keep handlers pure; side-effects via adapters (Telegram HTTP client, storage)
+
+## Messaging and Formatting
+- Escape MarkdownV2/HTML centrally; never interpolate raw user input
+- Build keyboards via helpers; reuse labels; avoid duplication
+- Stream files; do not buffer large payloads in history
+
+## Reliability and Limits
+- Idempotency key: `(chatId, messageId)`; deduplicate replays
+- Retries with exponential backoff + jitter for 5xx/network errors
+- Rate limit per chat and global; queue outgoing messages
+
+## Config and Security
+- Config via env vars; validate on startup; never hardcode secrets
+- Do not log tokens/PII; scrub identifiers on error level
+- Limit file sizes/types; scan when needed
+
+## Logging
+- Structured logs with `update_id`, `chat_id`, `message_id`, correlation id
+- Map internal errors to user-safe messages; keep details in logs only
+
+## Testing
+- Node environment; contract tests for Telegram HTTP calls
+- Mock only Telegram boundary; keep business logic real
+- Include negative paths: validation, auth, limits, idempotency, duplicates
+
+## ESLint Exceptions
+
+### @typescript-eslint/require-await
+When a function is intentionally synchronous inside async pipelines but must keep an async signature for interface compatibility.
+
+### @typescript-eslint/no-floating-promises
+Allowed only when the promise is deliberately fire-and-forget and is wrapped via a helper that logs and swallows errors safely (e.g., background queue enqueue), never in handlers.

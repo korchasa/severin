@@ -1,0 +1,100 @@
+#!/bin/zsh
+
+set -euo pipefail
+
+ROOT_DIR=$(cd "$(dirname "$0")" && pwd)
+
+
+usage() {
+  echo "Usage: ./run <command> [args...]" >&2
+  echo "" >&2
+  echo "Commands:" >&2
+  echo "  check               Run all checks: cleanup, formatting, linting, analyze, build, test" >&2
+  echo "  deploy <target>     Compile, deploy and start on remote host (e.g., user@host:/path/)" >&2
+  echo "                      Env: DENO_TARGET, BINARY_NAME (defaults: x86_64-unknown-linux-gnu, server-ai)" >&2
+  echo "  test <path>         Run tests (optionally single file)" >&2
+  echo "  start               Run the project" >&2
+  echo "  help                Show this help" >&2
+}
+
+PERMS=(--allow-import --allow-read --allow-write --allow-net --allow-env --allow-run)
+
+cmd=${1:-help}
+shift || true
+
+case "$cmd" in
+  help)
+    usage
+    ;;
+  start)
+    cd "$ROOT_DIR"
+    deno run ${PERMS[@]} main.ts | cat
+    ;;
+  test)
+    cd "$ROOT_DIR"
+    if [ $# -gt 0 ]; then
+      deno test ${PERMS[@]} "$@" | cat
+    else
+      deno test ${PERMS[@]} | cat
+    fi
+    ;;
+  check)
+    cd "$ROOT_DIR"
+    echo "Formatting code..."
+    deno fmt --check || deno fmt
+    echo "Check types in code..."
+    deno check --allow-import
+    echo "Linting code..."
+    deno lint
+    echo "Running tests..."
+    deno test ${PERMS[@]} | cat
+    ;;
+  deploy)
+    if [ $# -eq 0 ]; then
+      echo "Error: deploy target is required (e.g., user@host:/path/)" >&2
+      exit 1
+    fi
+    target="$1"
+    BINARY_NAME=${BINARY_NAME:-server-ai}
+    DENO_TARGET=${DENO_TARGET:-x86_64-unknown-linux-gnu}
+
+    echo "Compiling application for $DENO_TARGET..."
+    cd "$ROOT_DIR"
+    rm -f "$BINARY_NAME"
+    deno compile ${PERMS[@]} --quiet --target "$DENO_TARGET" --output "$BINARY_NAME" main.ts
+    echo "Preparing remote directory..."
+    remote_host=$(echo "$target" | sed 's#:.*##')
+    remote_path=$(echo "$target" | sed 's#^[^:]*:##')
+
+    # Determine remote directory and binary path
+    # Always treat remote_path as a directory, add binary name
+    remote_dir="$remote_path"
+    remote_binary_path="$remote_path/$(basename "$BINARY_NAME")"
+
+    ssh "$remote_host" "eval mkdir -p '$remote_dir'" || true
+    echo "Removing existing file/directory if any..."
+    ssh "$remote_host" "eval rm -rf '$remote_binary_path'" || true
+    echo "Deploying to $target..."
+    scp "$BINARY_NAME" "$remote_host:$remote_binary_path"
+    echo "Remote chmod +x..."
+    ssh "$remote_host" "eval chmod +x '$remote_binary_path'" || true
+    echo "Starting application remotely..."
+    # echo "Remote binary path: $remote_binary_path"
+    # echo "Remote directory: $remote_dir"
+    # Execute the binary in its directory to read .env file properly
+    # First expand the path on the remote server to handle ~
+    full_path=$(ssh "$remote_host" "eval echo $remote_binary_path" 2>/dev/null || echo "$remote_binary_path")
+    full_dir=$(ssh "$remote_host" "eval echo $remote_dir" 2>/dev/null || echo "$remote_dir")
+    binary_name=$(basename "$full_path")
+    echo "Full expanded path: $full_path"
+    echo "Working directory: $full_dir"
+    echo "Binary name: $binary_name"
+    ssh -t "$remote_host" "cd '$full_dir' && './$binary_name'"
+    ;;
+  *)
+    usage
+    exit 1
+    ;;
+esac
+
+

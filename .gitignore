@@ -1,0 +1,8 @@
+data
+.DS_Store
+documents/whiteboard.md
+server-ai
+.env
+.vscode
+node_modules
+vendor

@@ -1,0 +1,125 @@
+---
+alwaysApply: true
+---
+## Code Style Rules
+> PROJECT MODE: PoC — keep solutions simple and testable; defer non-essential rules.
+
+### MOST IMPORTANT RULES
+- NO FALLBACKS/HACKS WITHOUT EXPLICIT REQUEST. "FAIL FAST, FAIL CLEARLY."
+- USE TYPED CONSTANTS/ENUMS INSTEAD OF MAGIC NUMBERS/STRINGS
+- FUNCTIONS ≤100 LINES; BREAK COMPLEX LOGIC INTO HELPERS
+- TREAT LINTER/COMPILER WARNINGS AS ERRORS
+- MAIN/EXPORTED FUNCTIONS FIRST, AUXILIARIES LAST
+- PARAMETER STYLE: `{ REQUIRED, OPTIONAL = "DEFAULT" }`
+- DOCUMENT ALL FILES AND FUNCTIONS WITH TSDOC
+- TESTABILITY IS MORE IMPORTANT THAN PERFORMANCE AND ENCAPSULATION
+
+### TypeScript
+- Strict mode (`strict: true`)
+- Interfaces > types for objects
+- Union types over enums for simple cases
+- Avoid `any`; use `unknown` for truly unknown types
+- `readonly` for immutable data
+- Use utility types (`Partial`, `Pick`, etc.)
+- Don't use index files to import modules
+- Use a similar strong inline type style for parameter passing to methods and functions:
+```ts
+export async function fetchData(
+  {
+    url,
+    method = 'GET',
+    retries = 3,
+    requestData,
+  }: Readonly<{
+    url: string;
+    method?: 'GET' | 'POST';
+    retries?: number;
+    requestData: RequestData;
+  }>
+): Promise<readonly ResponseData[]> {
+  // ...
+}
+```
+
+### Telegram Bot (Bot API)
+- Prefer webhook delivery over long polling in production; use long polling in dev.
+- Centralized update intake: single `handleUpdate(update)` entry with typed routing.
+- Declarative command routing: `"/cmd"` → handler map; aliases and argument schemas.
+- Use middleware pipeline: auth → rate limit → validation → business logic → reply.
+- Structure handlers as pure functions where possible; isolate side effects (I/O) behind adapters.
+- Keyboard/UI: build `InlineKeyboardMarkup` via helpers; avoid duplicating button labels.
+- Files: stream uploads/downloads; never buffer large files in history.
+- Idempotency: ensure message processing is idempotent using dedup keys `(chatId, messageId)`.
+- Retries: implement exponential backoff with jitter for transient Telegram HTTP 5xx/network errors.
+- Respect Telegram rate limits; queue outgoing messages per chat and globally.
+- Localization: centralize strings; parameterized messages with ICU format; default locale fallback.
+
+### Transport and Delivery
+- Webhook: HTTPS only; validate secret path/token; return 200 fast and offload work to queue.
+- Long polling: set sensible `timeout`, `limit`, `allowed_updates`.
+- Network: set connect/read timeouts; circuit breaker on persistent failures.
+- Proxy support when needed; do not hardcode proxy settings.
+
+### API/Backend
+- Adapters for Telegram HTTP client; no direct `fetch`/`axios` calls in handlers.
+- Input validation for all handler inputs (commands, callbacks, forms) with schemas.
+- Consistent error mapping: internal errors → user-safe messages; log details, hide internals.
+- Config via env vars; never read secrets from code. Validate config at startup.
+- Logging: structured logs; include `update_id`, `chat_id`, `message_id`, correlation id.
+- Outgoing message formatting: escape MarkdownV2/HTML safely; centralize escaping helpers.
+- Callback query handling: always `answerCallbackQuery` even on errors.
+- State: explicit short-lived conversation state via store (e.g., Redis); TTL and schema.
+
+### Database
+- Migrations for schema changes
+- Proper indexing; transactions for consistency
+- Avoid N+1 queries; prepared statements
+- Data integrity constraints validation
+
+### Testing
+- Don't change prod code to pass tests
+- Unit tests for pure functions
+- Integration tests for interactions
+- E2E for critical flows
+- Given-When-Then test names
+- Test errors/edge cases; mock dependencies
+- Target 60% coverage
+- Keep a test pyramid (~70% unit, ~25% integration, ≤5% e2e); don’t push everything into e2e.
+- Behavior-first tests; avoid locking to internals.
+- Node test environment for bot; no jsdom.
+- Co-locate tests next to source (*.test.ts); keep fixtures in __fixtures__.
+- Fail fast on unhandledRejection/console.error.
+- Deterministic time/IDs/randomness; no wall-clock dependencies.
+- Mock Telegram Bot API at the boundary (HTTP client) only; keep business logic real.
+- Use fake timers deliberately; avoid arbitrary sleeps.
+- Include negative paths (validation, auth, limits, idempotency, duplicate updates).
+- Contract tests for Telegram calls: request/response schemas, error codes.
+- Split unit/integration in CI; publish coverage reports.
+
+### File Organization
+- Feature-based folders
+- Separate concerns: handlers, middleware, services, adapters, utils, types, tests
+- Shallow structure (≤3 levels)
+- Consistent naming
+
+### Documentation
+- TSDoc for public APIs (params, returns, exceptions, examples)
+- English comments only
+- Intent/invariants when code unclear; no redundant comments
+- Document complex logic/architecture
+- Updated READMEs; inline comments for non-obvious code
+
+### Performance
+- Queue outgoing messages; backpressure for bursts.
+- Cache computed keyboards/messages where safe.
+- Avoid synchronous heavy CPU in update path; offload to worker.
+- Monitor Telegram API latency/errors; circuit breakers.
+
+### Security
+- Input validation/sanitization
+- HTTPS for webhooks; validate Telegram IPs if applicable; secret token in URL.
+- Secure secrets (env vars); rotate bot tokens; never log tokens or PII.
+- Escape user-provided content in messages/formatting to prevent injection.
+- Limit file sizes/types; scan where required.
+- Regular dependency updates
+- No sensitive data in logs; scrub chat and user identifiers on error level where possible

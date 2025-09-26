@@ -1,0 +1,20 @@
+---
+description: Create and write issues/tasks
+alwaysApply: false
+---
+## Clear and Precise Task Setting
+> PROJECT MODE: PoC — tasks should target minimal viable functionality first.
+
+Use GODS to create and write issues/tasks.
+
+- **G — Goal:**
+  Why are we performing the task? What is the business goal?
+
+- **O — Overview:**
+  What is happening now? Why did the task arise? What is happening around it?
+
+- **D — Definition of Done:**
+  When do we consider the task completed? By what criteria?
+
+- **S — Solution:**
+  How can the task be solved?

@@ -1,0 +1,38 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+# YOU MUST
+- PROJECT MODE: The project is currently in Proof-of-Concept mode. Prefer simplest working solutions. Production-only rules/features may be relaxed or deferred unless marked as PoC-required.
+- STRICTLY FOLLOW YOUR ROLE.
+- ALWAYS FOLLOW API DESIGN GUIDELINES AND BEST PRACTICES.
+- YOU WILL BE REWARDED FOR FOLLOWING INSTRUCTIONS AND GOOD ANSWERS.
+- DO NOT USE STUBS IN THE CODE, IT IS IMPORTANT.
+- DON'T THINK ABOUT BACK COMPATIBILITY.
+- ALWAYS INDEPENDENTLY CHECK HYPOTHESES.
+- STRICTLY FOLLOW THE TEST DRIVEN DEVELOPMENT(TDD) PROCESS.
+- ALWAYS CHECK THE CHANGES MADE BY RUNNING THE APPROPRIATE TESTS OR SCRIPTS.
+- AFTER EACH TASK, CHECK THE PROJECT IN WORKING CONDITION: WITHOUT ERRORS, WARNINGS, AND PROBLEMS IN THE FORMATER AND LINTER OUTPUT.
+- CONSIDER THE SOFTWARE REQUIREMENTS SPECIFICATION(SRS) AS THE PRIMARY SOURCE OF TRUTH FOR THE PROJECT. IT ANSWERS THE QUESTIONS: WHAT ARE WE DOING AND WHY.
+- CONSIDER THE SOFTWARE DESIGN SPECIFICATION(SDS) AS A SOURCE OF PROJECT IMPLEMENTATION DETAILS. IT DEPENDS ON SOFTWARE REQUIREMENTS SPECIFICATION. IT ANSWERS THE QUESTION: HOW WE DO IT.
+- ANSWER IN LANGUAGE OF THE USER QUERY.
+- USE ONLY `./run` COMMAND TO RUN THE PROJECT COMMANDS.
+- IF YOU ENCOUNTER A LINTING RULE, WRITE IT IN SHORT FORM IN `.cursor/rules/code-style.mdc`.
+- WRITE ALL DOCUMENTATION IN INFORMATIONAL STYLE.
+- PERIODICALLY UPDATE THE WHITEBOARD FILE (`./documents/whiteboard.md`) BY RECORDING YOUR DETAILED PLAN, MARKING OFF COMPLETED STEPS, AND PRESERVING PROGRESS. CLEAN UP BEFORE NEW SESSION.
+- USE `./run start` and `./run stop` to start and stop the application server.
+
+## Operating Principles (Telegram Bot API)
+- Prefer webhooks in production; use long polling in development.
+- Single entrypoint `handleUpdate(update)` with typed routing and middleware pipeline.
+- Idempotency by `(chatId, messageId)`; dedup and safe retries with jitter.
+- Respect Telegram rate limits; queue outgoing messages per chat and globally.
+- Escape MarkdownV2/HTML centrally; always `answerCallbackQuery`.
+- Validate all inputs via schemas; config via env vars with startup validation.
+- Structured logs with `update_id`, `chat_id`, `message_id`, correlation id.
+- Offload heavy work to workers; apply timeouts and circuit breakers on HTTP.
+
+
+## REMEMBER
+AFTER EACH MEMORY RESET, YOU START COMPLETELY FROM SCRATCH. DOCUMENTATION IS THE ONLY LINK TO PREVIOUS WORK. IT MUST BE MAINTAINED WITH ACCURACY AND CLARITY, AS EFFECTIVENESS ENTIRELY DEPENDS ON ITS ACCURACY.
