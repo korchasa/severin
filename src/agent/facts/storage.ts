@@ -165,22 +165,20 @@ export class FileFactsStorage implements FactsStorage {
   async delete(id: string): Promise<boolean> {
     await this.ensureLoaded();
 
-    const initialLength = this.facts.length;
-    this.facts = this.facts.filter((fact) => fact.id !== id);
-
-    if (this.facts.length < initialLength) {
-      await this.save();
-
-      log({
-        mod: "facts",
-        event: "deleted",
-        id,
-      });
-
-      return true;
+    const index = this.facts.findIndex((fact) => fact.id === id);
+    if (index === -1) {
+      return false;
     }
+    this.facts.splice(index, 1);
+    await this.save();
 
-    return false;
+    log({
+      mod: "facts",
+      event: "deleted",
+      id,
+    });
+
+    return true;
   }
 
   /**
