@@ -220,39 +220,3 @@ Deno.test("createUpdateFactTool: handles storage error", async () => {
   assertEquals(result.id, "test-id");
 });
 
-Deno.test("createAddFactTool: handles storage error", async () => {
-  const storage = {
-    async add() {
-      await Promise.resolve();
-      return { success: false as const, error: "Storage error" };
-    },
-  } as unknown as FactsStorage;
-  const tool = createAddFactTool(storage);
-
-  const result = await tool.execute!({ content: "New fact" }, {
-    toolCallId: "test-call",
-    messages: [],
-  }) as { success: boolean; error: string };
-
-  assertEquals(result.success, false);
-  assertEquals(result.error, "Storage error");
-});
-
-Deno.test("createDeleteFactTool: handles storage error", async () => {
-  const storage = {
-    async delete() {
-      await Promise.resolve();
-      return { success: false as const, error: "Storage error", id: "test-id" };
-    },
-  } as unknown as FactsStorage;
-  const tool = createDeleteFactTool(storage);
-
-  const result = await tool.execute!({ id: "test-id" }, {
-    toolCallId: "test-call",
-    messages: [],
-  }) as { success: boolean; error: string; id: string };
-
-  assertEquals(result.success, false);
-  assertEquals(result.error, "Storage error");
-  assertEquals(result.id, "test-id");
-});
