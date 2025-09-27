@@ -291,8 +291,9 @@ System accepted when:
 8. ✅ Config via prefixed environment variables (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_OWNER_IDS`,
    `AGENT_LLM_API_KEY`, optional `AGENT_DATA_DIR`, `LOGGING_FORMAT`, `AGENT_MEMORY_MAX_MESSAGES`,
    `AGENT_TERMINAL_TIMEOUT_MS`, `AGENT_TERMINAL_MAX_COMMAND_OUTPUT_SIZE`,
-   `AGENT_TERMINAL_MAX_LLM_INPUT_LENGTH`, `AGENT_LLM_PRICE_INPUT_TOKENS`, `AGENT_LLM_PRICE_OUTPUT_TOKENS`,
-   etc.); defaults in `createDefaultConfig()`; domain objects; caching prevents repeated parsing; secrets masked.
+   `AGENT_TERMINAL_MAX_LLM_INPUT_LENGTH`, `AGENT_LLM_PRICE_INPUT_TOKENS`,
+   `AGENT_LLM_PRICE_OUTPUT_TOKENS`, etc.); defaults in `createDefaultConfig()`; domain objects;
+   caching prevents repeated parsing; secrets masked.
 9. ✅ LLM integration via specialized tasks: MainAgent for conversations, AuditTask/DiagnoseTask for
    monitoring; Vercel AI SDK with compatible LLM provider; no direct external API calls; Deno
    runtime.
