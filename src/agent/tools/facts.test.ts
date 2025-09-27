@@ -219,4 +219,3 @@ Deno.test("createUpdateFactTool: handles storage error", async () => {
   assertEquals(result.error, "Storage error");
   assertEquals(result.id, "test-id");
 });
-

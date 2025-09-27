@@ -163,7 +163,7 @@ ${rawAuditData}
 {
   "isEscalationNeeded": <boolean>,
   "reason": "<one-line NOT OK reason>",
-  "evidence": { "<metric>": "<value>", "...": "..." }
+  "evidence": [{"metric": "<metric>", "value": "<value>"}, ...]
 }
 `;
 }
