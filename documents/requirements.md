@@ -220,6 +220,22 @@
   - Storage operations are atomic and logged.
   - Facts persist across agent restarts.
 
+### ✅ FR-16 LLM Cost Calculation
+
+- **Description:** Agent calculates and tracks costs of LLM usage based on configurable token prices
+  for cost monitoring and optimization.
+- **Use case:** Monitor LLM usage costs across different operations (conversations, metrics
+  analysis, diagnostics) for budget control and efficiency analysis.
+- **Criteria:**
+  - Support for all token types from `LanguageModelV2Usage`: `inputTokens`, `outputTokens`,
+    `totalTokens`, `reasoningTokens`, `cachedInputTokens`.
+  - Pricing configuration via environment variables (`AGENT_LLM_PRICE_*`) in USD per 1M tokens.
+  - Pure calculation function without external dependencies (no `@pydantic/genai-prices`).
+  - Cost calculation integrated into all LLM operations (MainAgent, AuditTask, DiagnoseTask).
+  - Optional token types (reasoning, cached) with configurable pricing.
+  - Type-safe implementation with full TypeScript support.
+  - Usage tracking added to AuditTask and DiagnoseTask for cost monitoring.
+
 ### ❌ FR-13 Additional System Prompt Instructions
 
 - **Description:** Support for additional custom instructions in LLM system prompt via environment
@@ -275,8 +291,8 @@ System accepted when:
 8. ✅ Config via prefixed environment variables (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_OWNER_IDS`,
    `AGENT_LLM_API_KEY`, optional `AGENT_DATA_DIR`, `LOGGING_FORMAT`, `AGENT_MEMORY_MAX_MESSAGES`,
    `AGENT_TERMINAL_TIMEOUT_MS`, `AGENT_TERMINAL_MAX_COMMAND_OUTPUT_SIZE`,
-   `AGENT_TERMINAL_MAX_LLM_INPUT_LENGTH`, etc.); defaults in `createDefaultConfig()`; domain
-   objects; caching prevents repeated parsing; secrets masked.
+   `AGENT_TERMINAL_MAX_LLM_INPUT_LENGTH`, `AGENT_LLM_PRICE_INPUT_TOKENS`, `AGENT_LLM_PRICE_OUTPUT_TOKENS`,
+   etc.); defaults in `createDefaultConfig()`; domain objects; caching prevents repeated parsing; secrets masked.
 9. ✅ LLM integration via specialized tasks: MainAgent for conversations, AuditTask/DiagnoseTask for
    monitoring; Vercel AI SDK with compatible LLM provider; no direct external API calls; Deno
    runtime.
@@ -290,3 +306,5 @@ System accepted when:
 14. ✅ Persistent facts storage with LLM tools: facts stored in `data/facts.jsonl`, managed via
     `add_fact`, `update_fact`, `delete_fact`, `get_all_facts` tools, integrated into system prompts
     using structured markdown formatting.
+15. ✅ LLM cost calculation: token pricing configured via environment variables, cost tracking
+    integrated into AuditTask and DiagnoseTask, usage aggregated across operations.

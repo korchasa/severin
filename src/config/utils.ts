@@ -68,6 +68,27 @@ export function parseOwnerIds(envVar: string): readonly number[] {
 }
 
 /**
+ * Type-safe environment variable getter for optional numbers
+ * @param name Environment variable name
+ * @param defaultValue Default value (optional)
+ * @returns Parsed number or undefined if not set and no default
+ */
+export function envNumberOptional(name: string, defaultValue?: number): number | undefined {
+  const value = Deno.env.get(name);
+
+  if (value === undefined) {
+    return defaultValue;
+  }
+
+  const numValue = Number(value);
+  if (isNaN(numValue)) {
+    throw new Error(`Environment variable ${name} must be a valid number, got: ${value}`);
+  }
+
+  return numValue;
+}
+
+/**
  * Converts configuration to JSON string without PII (Personally Identifiable Information)
  * Masks sensitive data like API keys and tokens
  * @param config Configuration object

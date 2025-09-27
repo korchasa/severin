@@ -27,6 +27,10 @@ const mockConfig: Config = {
       basePrompt: "test",
       additionalPrompt: "",
       systemInfo: undefined,
+      tokenPrices: {
+        inputTokens: 0.15,
+        outputTokens: 0.60,
+      },
     },
   },
   telegram: { botToken: "test", ownerIds: [123] },

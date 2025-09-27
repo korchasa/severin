@@ -13,7 +13,7 @@ import { markdownToTelegramHTML } from "../telegram/telegram-format.ts";
 import { AuditTask } from "../agent/audit-task.ts";
 import { ConversationHistory } from "../agent/history/service.ts";
 import { DiagnoseTask } from "../agent/diagnose-task.ts";
-import { yamlDump } from "../utils/dump.ts";
+import { yamlDump as _yamlDump } from "../utils/dump.ts";
 
 /**
  * Scheduler state for singleflight pattern
@@ -101,21 +101,15 @@ class HealthScheduler {
 
     if (!auditSummary.isEscalationNeeded) {
       log({
-        mod: "checks",
-        event: "audit_summary",
-        isEscalationNeeded: auditSummary.isEscalationNeeded,
+        mod: "scheduler",
+        event: "everything_ok",
         reason: auditSummary.reason,
-        evidence: yamlDump(auditSummary.evidence),
       });
       return;
     }
 
     // 5. Use diagnostician to diagnose the problem
-    const diagnoseSummary = await this.state.diagnoseTask.diagnose({
-      auditAnalysis: auditSummary.rawAuditData,
-      reason: auditSummary.reason,
-      evidence: auditSummary.evidence,
-    });
+    const diagnoseSummary = await this.state.diagnoseTask.diagnose(auditSummary);
 
     // 6. Send notification only if Diagnostician says there's a problem
     if (diagnoseSummary.isEscalationNeeded && this.state.bot) {

@@ -60,6 +60,9 @@ src/
 │   ├── types.ts             # Configuration type definitions
 │   ├── load.ts              # Configuration loading utilities
 │   └── utils.ts             # Configuration helper functions
+├── llm/
+│   ├── cost.ts              # LLM token pricing and cost calculation
+│   └── cost.test.ts         # Cost calculation unit tests
 ├── core/
 │   └── types.ts             # Common type definitions and interfaces
 ├── system-info/

@@ -8,7 +8,7 @@
 
 import { generateObject } from "ai";
 import { log } from "../utils/logger.ts";
-import type { LanguageModelV2 } from "@ai-sdk/provider";
+import type { LanguageModelV2, LanguageModelV2Usage } from "@ai-sdk/provider";
 import { z } from "zod";
 import { SystemInfo } from "../system-info/system-info.ts";
 import { FactsStorage } from "../core/types.ts";
@@ -36,6 +36,7 @@ export type AuditSummary = {
   reason: string;
   evidence: { metric: string; value: string }[];
   rawAuditData: string;
+  usage: LanguageModelV2Usage;
 };
 
 /**
@@ -73,7 +74,7 @@ export function createAuditTask({
         const prompt = await generateAuditSystemPrompt({ systemInfo, factsStorage, rawAuditData });
         log({ mod: "agent", event: "process_audit_results_message", message: prompt });
         // Generate LLM decision
-        const { object } = await generateObject({
+        const { object, usage } = await generateObject({
           model: llmModel,
           messages: [{ role: "system", content: prompt }],
           schema: z.object({
@@ -87,9 +88,10 @@ export function createAuditTask({
           mod: "agent",
           event: "process_audit_results_success",
           correlationId,
+          usage,
         });
 
-        return { ...object, rawAuditData: rawAuditData };
+        return { ...object, rawAuditData: rawAuditData, usage };
       } catch (error) {
         log({
           mod: "agent",

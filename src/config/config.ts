@@ -2,7 +2,7 @@
  * Configuration and environment variable validation
  */
 import type { Config } from "./types.ts";
-import { env, parseOwnerIds } from "./utils.ts";
+import { env, envNumberOptional, parseOwnerIds } from "./utils.ts";
 export type { Config };
 
 /**
@@ -50,6 +50,14 @@ export function createDefaultConfig(systemInfo?: string): Config {
         additionalPrompt: env("AGENT_LLM_ADDITIONAL_PROMPT", "").trim(),
         // System information for LLM context
         systemInfo,
+        // Token prices in USD per 1M tokens
+        tokenPrices: {
+          inputTokens: env("AGENT_LLM_PRICE_INPUT_TOKENS", 0.15), // $0.15 per 1M input tokens
+          outputTokens: env("AGENT_LLM_PRICE_OUTPUT_TOKENS", 0.60), // $0.60 per 1M output tokens
+          totalTokens: envNumberOptional("AGENT_LLM_PRICE_TOTAL_TOKENS"), // Optional total token price
+          reasoningTokens: envNumberOptional("AGENT_LLM_PRICE_REASONING_TOKENS"), // Optional reasoning token price
+          cachedInputTokens: envNumberOptional("AGENT_LLM_PRICE_CACHED_INPUT_TOKENS"), // Optional cached input token price
+        },
       },
     },
     // Telegram bot configuration

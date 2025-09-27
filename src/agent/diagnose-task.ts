@@ -1,6 +1,6 @@
 import { log } from "../utils/logger.ts";
 import { yamlDump } from "../utils/dump.ts";
-import type { LanguageModelV2 } from "@ai-sdk/provider";
+import type { LanguageModelV2, LanguageModelV2Usage } from "@ai-sdk/provider";
 import { z } from "zod";
 import {
   Experimental_Agent as Agent,
@@ -13,6 +13,8 @@ import {
 import { stopTool } from "./tools/stop.ts";
 import { SystemInfo } from "../system-info/system-info.ts";
 import { FactsStorage } from "../core/types.ts";
+import { AuditSummary } from "./audit-task.ts";
+import { sumUsages } from "../llm/cost.ts";
 
 export interface DiagnoseTask {
   /**
@@ -22,17 +24,14 @@ export interface DiagnoseTask {
    * @param input - Audit summary from audit task
    * @returns Promise resolving to diagnose summary
    */
-  diagnose(input: {
-    reason: string;
-    evidence: { metric: string; value: string }[];
-    auditAnalysis: string;
-  }): Promise<DiagnoseSummary>;
+  diagnose(input: AuditSummary): Promise<DiagnoseSummary>;
 }
 
 export type DiagnoseSummary = {
   isEscalationNeeded: boolean;
   mostLikelyHypothesis: string;
   thoughts: string[];
+  usage: LanguageModelV2Usage;
 };
 
 /**
@@ -55,33 +54,19 @@ export function createDiagnoseTask({
   factsStorage: FactsStorage;
 }): DiagnoseTask {
   return {
-    async diagnose(input: {
-      reason: string;
-      evidence: { metric: string; value: string }[];
-      auditAnalysis: string;
-    }): Promise<DiagnoseSummary> {
+    async diagnose(input: AuditSummary): Promise<DiagnoseSummary> {
       log({
         mod: "agent",
         event: "diagnose_start",
         reason: input.reason,
         evidence: input.evidence,
-        analysisLength: input.auditAnalysis.length,
+        analysisLength: input.rawAuditData.length,
       });
-
-      const lines: string[] = [];
-      lines.push("### telemetrySnapshot");
-      lines.push(input.auditAnalysis);
-      lines.push("### escalation reason");
-      lines.push(input.reason);
-      lines.push("### problem evidence");
-      for (const item of input.evidence) {
-        lines.push(`- ${item.metric}: ${item.value}`);
-      }
 
       const systemPrompt = await generateDiagnoseSystemPrompt({
         systemInfo,
         factsStorage,
-        auditAnalysis: input.auditAnalysis,
+        auditAnalysis: input.rawAuditData,
         reason: input.reason,
         evidence: input.evidence,
       });
@@ -93,7 +78,6 @@ export function createDiagnoseTask({
       try {
         const agent = new Agent({
           model: llmModel,
-          system: systemPrompt,
           tools: {
             terminal: terminalTool,
             stop: stopTool(),
@@ -110,10 +94,8 @@ export function createDiagnoseTask({
             }),
           }),
         });
-        const { experimental_output: summary } = await agent.generate({
-          messages: [
-            { role: "user", content: lines.join("\n") },
-          ],
+        const { experimental_output: summary, usage } = await agent.generate({
+          prompt: systemPrompt,
         });
 
         log({
@@ -128,6 +110,7 @@ export function createDiagnoseTask({
           isEscalationNeeded: summary.isEscalationNeeded,
           mostLikelyHypothesis: summary.mostLikelyHypothesis,
           thoughts: summary.thoughts,
+          usage: sumUsages([input.usage, usage]),
         };
       } catch (error) {
         if (NoObjectGeneratedError.isInstance(error)) {

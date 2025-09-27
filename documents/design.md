@@ -77,7 +77,7 @@ graph TD
 - **Schema validation:** `zod`
 - **Logging:** console JSON logger
 - **Testing:** `Deno.test` co-located (*.test.ts)
-- **Correlation ID:** `nanoid`
+- **Correlation ID:** custom timestamp-based generator (base64-encoded)
 - **Processes:** `Deno.Command` (no shell/TTY)
 - **LLM:** Vercel AI SDK (`ai`) with any compatible model (e.g., OpenAI gpt-4o-mini, Claude, etc.);
   Experimental_Agent for tool orchestration
@@ -104,6 +104,12 @@ graph TD
   - `AGENT_TERMINAL_MAX_LLM_INPUT_LENGTH: number` (default 2000)
   - `AGENT_LLM_ADDITIONAL_PROMPT: string` (optional) - additional custom instructions for LLM system
     prompt
+  - `AGENT_LLM_PRICE_INPUT_TOKENS: number` (default 0.15) - price per 1M input tokens in USD
+  - `AGENT_LLM_PRICE_OUTPUT_TOKENS: number` (default 0.60) - price per 1M output tokens in USD
+  - `AGENT_LLM_PRICE_TOTAL_TOKENS: number` (optional) - price per 1M total tokens in USD
+  - `AGENT_LLM_PRICE_REASONING_TOKENS: number` (optional) - price per 1M reasoning tokens in USD
+  - `AGENT_LLM_PRICE_CACHED_INPUT_TOKENS: number` (optional) - price per 1M cached input tokens in
+    USD
   - `SCHEDULER_INTERVAL_HOURS: number` (default 1)
   - `SCHEDULER_JITTER_MINUTES: number` (default 5)
   - `AGENT_METRICS_HISTORY_HOURS: number` (default 1) - how long to keep metrics history
@@ -134,6 +140,13 @@ interface Config {
       additionalPrompt: string;
       systemInfo?: string;
       metricsAnalysisPrompt: string;
+      tokenPrices: {
+        inputTokens: number;
+        outputTokens: number;
+        totalTokens?: number;
+        reasoningTokens?: number;
+        cachedInputTokens?: number;
+      };
     };
   };
   telegram: { botToken: string; ownerIds: readonly number[] };
@@ -420,6 +433,21 @@ interface Check {
 - **Parse mode:** `HTML`.
 - **Safety:** HTML entities escaped centrally.
 
+### 4.17. LLM Cost Calculation
+
+- **Purpose:** Calculate LLM usage costs in USD based on token consumption and configured pricing.
+- **Token Types Supported:**
+  - `inputTokens`: Tokens used in user prompts and system messages
+  - `outputTokens`: Tokens generated in LLM responses
+  - `totalTokens`: Total tokens (optional alternative to separate input/output)
+  - `reasoningTokens`: Tokens used for internal reasoning (optional)
+  - `cachedInputTokens`: Cached input tokens at reduced pricing (optional)
+- **Pricing Model:** USD per 1 million tokens; configurable via environment variables.
+- **Calculation Function:**
+  `calcPrice(usage: LanguageModelV2Usage, tokenPrices: TokenPrices): number`
+- **Usage:** Integrated into agent tasks for cost tracking and monitoring.
+- **Fallback:** No external dependencies; pure calculation based on configured prices.
+
 ---
 
 ## 5. Sequences (sequence diagrams)
@@ -694,6 +722,9 @@ src/
     types.ts             # Configuration type definitions
     load.ts              # Configuration loading utilities
     utils.ts             # Configuration helper functions
+  llm/
+    cost.ts              # LLM token pricing and cost calculation
+    cost.test.ts         # Cost calculation unit tests
   core/
     types.ts             # Common type definitions and interfaces
   system-info/
@@ -783,6 +814,11 @@ LOGGING_FORMAT=pretty
 AGENT_MEMORY_MAX_MESSAGES=200
 AGENT_TOOLS_TIMEOUT_MS=30000
 AGENT_TOOLS_MAX_OUTPUT_BYTES=200000
+AGENT_LLM_PRICE_INPUT_TOKENS=0.15
+AGENT_LLM_PRICE_OUTPUT_TOKENS=0.60
+AGENT_LLM_PRICE_TOTAL_TOKENS=
+AGENT_LLM_PRICE_REASONING_TOKENS=
+AGENT_LLM_PRICE_CACHED_INPUT_TOKENS=
 SCHEDULER_INTERVAL_HOURS=1
 SCHEDULER_JITTER_MINUTES=5
 AGENT_METRICS_HISTORY_HOURS=1

@@ -1,11 +1,21 @@
 /**
  * Facts service with file-based persistence
  * Manages persistent facts that can be stored, retrieved, and modified by the agent
+ * Uses custom timestamp-based ID generation instead of external dependencies
  */
 
 import type { Fact, FactsStorage } from "../../core/types.ts";
 import { log } from "../../utils/logger.ts";
-import { nanoid } from "nanoid";
+
+/**
+ * Генерирует короткий символьный ID на основе timestamp
+ * Использует base64 представление текущего времени в миллисекундах
+ * Аналогично идентификаторам Twitter (snowflake IDs)
+ */
+export function generateId(timestamp?: number): string {
+  const ts = timestamp ?? Date.now();
+  return btoa(ts.toString()).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+}
 
 /**
  * File-based facts storage implementation
@@ -105,10 +115,12 @@ export class FileFactsStorage implements FactsStorage {
     try {
       await this.ensureLoaded();
 
+      const timestamp = Date.now();
+
       const fact: Fact = {
-        id: nanoid(),
+        id: generateId(timestamp),
         content: factInput.content,
-        ts: new Date().toISOString(),
+        ts: new Date(timestamp).toISOString(),
       };
 
       this.facts.push(fact);
