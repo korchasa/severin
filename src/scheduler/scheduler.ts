@@ -103,8 +103,11 @@ class HealthScheduler {
       log({
         mod: "checks",
         event: "audit_summary",
-        data: yamlDump(auditSummary),
+        isEscalationNeeded: auditSummary.isEscalationNeeded,
+        reason: auditSummary.reason,
+        evidence: yamlDump(auditSummary.evidence),
       });
+      return;
     }
 
     // 5. Use diagnostician to diagnose the problem
