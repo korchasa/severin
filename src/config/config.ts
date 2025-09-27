@@ -79,6 +79,8 @@ export function createDefaultConfig(systemInfo?: string): Config {
       changeThreshold: env("AGENT_METRICS_CHANGE_THRESHOLD", 10),
       // Minutes to look back for comparison (5 min, 30 min)
       comparisonMinutes: [5, 30],
+      // Delay between collecting sensitive metrics to prevent interference
+      sensitiveCollectionDelayMs: env("AGENT_METRICS_SENSITIVE_COLLECTION_DELAY_MS", 3000),
     },
   };
 }

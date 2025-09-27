@@ -8,7 +8,6 @@
 
 import { generateObject } from "ai";
 import { log } from "../utils/logger.ts";
-import { yamlDump } from "../utils/dump.ts";
 import type { LanguageModelV2 } from "@ai-sdk/provider";
 import { z } from "zod";
 import { SystemInfo } from "../system-info/system-info.ts";
@@ -88,7 +87,6 @@ export function createAuditTask({
           mod: "agent",
           event: "process_audit_results_success",
           correlationId,
-          data: yamlDump(object),
         });
 
         return { ...object, rawAuditData: rawAuditData };

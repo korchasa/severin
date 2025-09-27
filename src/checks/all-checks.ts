@@ -27,6 +27,9 @@ export async function runAllChecksForMetrics(_config: Config): Promise<MetricVal
   });
 
   for (const CollectorClass of sensitiveCollectors) {
+    // Add pause before collecting each sensitive metric to prevent interference
+    await new Promise((resolve) => setTimeout(resolve, _config.metrics.sensitiveCollectionDelayMs));
+
     const collector = new CollectorClass();
     const startTime = performance.now();
 

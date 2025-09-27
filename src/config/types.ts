@@ -26,6 +26,7 @@ export interface MetricsConfig {
   readonly historyHours: number;
   readonly changeThreshold: number;
   readonly comparisonMinutes: readonly number[];
+  readonly sensitiveCollectionDelayMs: number;
 }
 
 export interface HistoryConfig {
@@ -109,5 +110,6 @@ export const configSchema = z.object({
     historyHours: z.number().int().positive(),
     changeThreshold: z.number().positive(),
     comparisonMinutes: z.array(z.number().int().positive()),
+    sensitiveCollectionDelayMs: z.number().int().positive(),
   }),
 });

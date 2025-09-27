@@ -36,6 +36,7 @@ const mockConfig: Config = {
     historyHours: 1,
     changeThreshold: 10,
     comparisonMinutes: [5, 30],
+    sensitiveCollectionDelayMs: 3000,
   },
 };
 
