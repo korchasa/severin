@@ -19,6 +19,7 @@ import { ConversationHistory } from "./agent/history/service.ts";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createDiagnoseTask } from "./agent/diagnose-task.ts";
 import { createTerminalTool } from "./agent/tools/terminal.ts";
+import { createFactsStorage } from "./agent/facts/storage.ts";
 // LLM adapter encapsulated within agent
 
 /**
@@ -61,13 +62,22 @@ export async function startAgent(): Promise<void> {
     config.agent.terminal.maxLLMInputLength,
   );
 
+  // Initialize facts storage
+  const factsStorage = createFactsStorage(config.agent.dataDir);
+
   // Initialize agent (encapsulates LLM, history, tools)
   const llmProvider = createOpenAI({ apiKey: config.agent.llm.apiKey });
   const llmModel = llmProvider(config.agent.llm.model);
   const conversationHistory = new ConversationHistory(config.agent.history.maxMessages);
-  const agent = createMainAgent({ llmModel, terminalTool, conversationHistory, systemInfo });
-  const auditTask = createAuditTask({ llmModel, systemInfo });
-  const diagnoseTask = createDiagnoseTask({ llmModel, terminalTool, systemInfo });
+  const agent = createMainAgent({
+    llmModel,
+    terminalTool,
+    conversationHistory,
+    systemInfo,
+    factsStorage,
+  });
+  const auditTask = createAuditTask({ llmModel, systemInfo, factsStorage });
+  const diagnoseTask = createDiagnoseTask({ llmModel, terminalTool, systemInfo, factsStorage });
 
   // LLM adapter encapsulated within agent
 

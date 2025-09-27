@@ -13,6 +13,8 @@ import { Tool } from "ai";
 import { Experimental_Agent as Agent } from "ai";
 import { stepCountIs } from "ai";
 import { SystemInfo } from "../system-info/system-info.ts";
+import type { FactsStorage } from "../core/types.ts";
+import { createAddFactTool, createDeleteFactTool, createUpdateFactTool } from "./tools/facts.ts";
 
 /**
  * Public interface for the Agent facade.
@@ -37,11 +39,13 @@ export function createAgent({
   terminalTool,
   conversationHistory,
   systemInfo,
+  factsStorage,
 }: {
   llmModel: LanguageModelV2;
   terminalTool: Tool;
   conversationHistory: ConversationHistory;
   systemInfo: SystemInfo;
+  factsStorage: FactsStorage;
 }): MainAgent {
   // Return agent implementation
   return {
@@ -63,9 +67,12 @@ export function createAgent({
       try {
         const agent = new Agent({
           model: llmModel,
-          system: generateSystemPrompt({ serverInfo: systemInfo }),
+          system: await generateSystemPrompt({ serverInfo: systemInfo, factsStorage }),
           tools: {
             terminal: terminalTool,
+            add_fact: createAddFactTool(factsStorage),
+            update_fact: createUpdateFactTool(factsStorage),
+            delete_fact: createDeleteFactTool(factsStorage),
           },
           stopWhen: [
             stepCountIs(30),
@@ -100,29 +107,29 @@ export function createAgent({
   };
 }
 
-function generateSystemPrompt({ serverInfo }: { serverInfo: SystemInfo }) {
-  return `# System Prompt for Server Agent (Condensed)
+async function generateSystemPrompt(
+  { serverInfo, factsStorage }: { serverInfo: SystemInfo; factsStorage: FactsStorage },
+) {
+  return `# System Prompt for Server Agent
 
 ## Role & Mission
-
 You are a reliable SRE/DevOps agent named **Severin** running on the **target server**. Your task is to help the user manage the server: execute requests, perform diagnostics and analysis, identify and explain problems, safely fix them, and confirm the results. Operate transparently: Diagnostics (read-only) → Plan → Safe execute → Verify → Brief report.
 
-## Inputs
-
+Inputs:
 * **SERVER_INFO** — structured information about OS/distribution, resources, versions, node roles, etc. (source of truth).
-* **FACTS** — stored facts (accepted decisions, policies, paths, environment variables, contacts, etc.). Can be updated via \`update_facts\` tool.
+* **FACTS** — stored facts (accepted decisions, policies, paths, environment variables, contacts, etc.). Can be updated via \`add_fact\`, \`update_fact\`, \`delete_fact\` tools.
 * **USER_REQUEST** — current user task (natural language).
 
 Always consider \`SERVER_INFO\` and \`FACTS\`. If something contradicts reality, do a quick verification on the system (not via the user) and report the discrepancy.
 
-## SERVER_INFO
-${serverInfo.toMarkdown()}
+## Available Tools
 
-## FACTS
-<no facts>
-
-Facts Management Tools:
-* \`update_facts\` — update facts.
+- **terminal** - execute shell commands:
+  * request: { "command": "<shell>", "cwd": "<optional>", "reason": "<why this command is needed>" }
+  * response: { "exitCode": <number>, "stdout": "<string>", "stderr": "<string>", "truncated": <boolean>, "durationMs": <number> }
+- **add_fact** - add a new fact.
+- **update_fact** - update an existing fact.
+- **delete_fact** - delete a fact.
 
 ## Global Rules
 
@@ -312,5 +319,11 @@ systemctl reload <svc>
 **Commands:** \`bash\` block (no secrets).
 **Validation:** checks.
 **Result/Next:** status + key metrics/logs; follow-ups.
+
+## SERVER_INFO
+${serverInfo.toMarkdown()}
+
+## FACTS
+${await factsStorage.toMarkdown()}
 `;
 }

@@ -1,5 +1,12 @@
 /**
- * Metrics analyzer tests - validates historical comparison logic
+ * Metrics analyzer tests - validates historical comparison and context building logic
+ *
+ * Tests cover:
+ * - Percentage difference calculations
+ * - Significant change filtering
+ * - Analysis context building with inline changes
+ * - Multiple time period change formatting
+ * - Diff formatting with proper signs
  */
 
 import { assert, assertEquals } from "@std/assert";
@@ -84,6 +91,7 @@ Deno.test("MetricsAnalyzer - filters significant changes", () => {
 Deno.test("MetricsAnalyzer - builds analysis context", () => {
   const analyzer = new MetricsAnalyzer();
 
+  // Test data: CPU has significant change, memory does not
   const currentMetrics: MetricValue[] = [
     {
       name: "cpu_usage_percent",
@@ -99,23 +107,61 @@ Deno.test("MetricsAnalyzer - builds analysis context", () => {
     },
   ];
 
+  // Only CPU has a significant change (50% increase)
   const changes = [
     {
       name: "cpu_usage_percent",
       diff: 50,
       current: 75,
       historical: 50,
-      historicalTs: "2025-09-23T10:00:00.000Z",
+      historicalTs: "2025-09-23T10:00:00.000Z", // 5 minutes ago
     },
   ];
 
   const context = analyzer.buildAnalysisContext(currentMetrics, changes, [5, 30]);
 
-  assert(context.includes("Current metrics (2025-09-23T10:05:00.000Z):"));
-  assert(context.includes("cpu_usage_percent: 75%"));
+  // CPU should show change inline: "cpu_usage_percent: 75% (+50.00% from 5 min ago)"
+  assert(context.includes("cpu_usage_percent: 75% (+50.00% from 5 min ago)"));
+  // Memory should show no changes: "memory_usage_percent: 80%"
   assert(context.includes("memory_usage_percent: 80%"));
-  assert(context.includes("Significant changes in last 5 minutes:"));
-  assert(context.includes("cpu_usage_percent: 50 → 75 (+50.00%)"));
+});
+
+Deno.test("MetricsAnalyzer - builds analysis context with multiple time periods", () => {
+  const analyzer = new MetricsAnalyzer();
+
+  // Test case matching the user's example: cpu_usage_percent: 4 (+33.33% from 5 min ago, -10% from 30 min ago)
+  const currentMetrics: MetricValue[] = [
+    {
+      name: "cpu_usage_percent",
+      value: 4,
+      unit: "%",
+      ts: "2025-09-23T10:05:00.000Z", // Current time
+    },
+  ];
+
+  // Two significant changes for the same metric at different time periods
+  const changes = [
+    {
+      name: "cpu_usage_percent",
+      diff: 33.33, // +33.33% increase
+      current: 4,
+      historical: 3, // from 3 to 4
+      historicalTs: "2025-09-23T10:00:00.000Z", // 5 minutes ago
+    },
+    {
+      name: "cpu_usage_percent",
+      diff: -10, // -10% decrease
+      current: 4,
+      historical: 4.4, // from 4.4 to 4
+      historicalTs: "2025-09-23T09:35:00.000Z", // 30 minutes ago
+    },
+  ];
+
+  const context = analyzer.buildAnalysisContext(currentMetrics, changes, [5, 30]);
+
+  assert(
+    context.includes("cpu_usage_percent: 4% (+33.33% from 5 min ago, -10.00% from 30 min ago)"),
+  );
 });
 
 Deno.test("MetricsAnalyzer - formats diff with sign", () => {

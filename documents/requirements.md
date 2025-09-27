@@ -153,7 +153,8 @@
   - System prompts include server info from startup collection; conversation history maintained
     in-RAM.
   - Tools: terminal (command execution), stop (conversation termination).
-  - OpenAI via `AGENT_LLM_API_KEY` ENV with Vercel AI SDK.
+  - LLM provider via `AGENT_LLM_API_KEY` ENV with Vercel AI SDK (compatible with OpenAI, Claude,
+    etc.).
   - Runtime: Deno; LLM tasks via internal interfaces only.
 
 ### ✅ FR-10 Automatic Text Message Processing
@@ -201,6 +202,21 @@
   - Components: `ConversationHistory`, Vercel AI SDK agents, specialized prompts.
   - Telegram handlers use MainAgent; scheduler uses AuditTask + DiagnoseTask.
   - Conversation history limits and tool orchestration managed per component.
+
+### ✅ FR-15 Persistent Facts Storage and Management
+
+- **Description:** Agent maintains persistent facts storage that can be updated via LLM tools and
+  included in system prompts for contextual awareness.
+- **Use case:** Agent can remember important information about the system and environment, improving
+  contextual relevance of responses and allowing persistent knowledge management.
+- **Criteria:**
+  - File-based storage in `data/facts.jsonl` using JSONL format.
+  - Facts include `id`, `content`, `timestamp` fields.
+  - LLM tools: `add_fact`, `update_fact`, `delete_fact`, `get_all_facts`.
+  - Facts integrated into system prompt under dedicated "## FACTS" section.
+  - Tools available only through LLM; no direct user access.
+  - Storage operations are atomic and logged.
+  - Facts persist across agent restarts.
 
 ### ❌ FR-13 Additional System Prompt Instructions
 
@@ -260,7 +276,8 @@ System accepted when:
    `AGENT_TERMINAL_MAX_LLM_INPUT_LENGTH`, etc.); defaults in `createDefaultConfig()`; domain
    objects; caching prevents repeated parsing; secrets masked.
 9. ✅ LLM integration via specialized tasks: MainAgent for conversations, AuditTask/DiagnoseTask for
-   monitoring; Vercel AI SDK with OpenAI; no direct external API calls; Deno runtime.
+   monitoring; Vercel AI SDK with compatible LLM provider; no direct external API calls; Deno
+   runtime.
 10. ✅ Non-`/` text messages processed via MainAgent with conversation history; `/reset` clears
     history; short messages filtered; empty responses filtered; system info included in prompts.
 11. ✅ Logger supports pretty (default)/JSON formats; pretty with auto color detection.
@@ -268,3 +285,6 @@ System accepted when:
     DiagnoseTask for diagnosis; clean separation with appropriate tools per context.
 13. ❌ Additional system prompt instructions loaded from `AGENT_LLM_ADDITIONAL_PROMPT` env var and
     integrated into LLM system prompt in dedicated section; empty when unset.
+14. ✅ Persistent facts storage with LLM tools: facts stored in `data/facts.jsonl`, managed via
+    `add_fact`, `update_fact`, `delete_fact`, `get_all_facts` tools, integrated into system prompts
+    using structured markdown formatting.

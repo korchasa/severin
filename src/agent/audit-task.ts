@@ -12,6 +12,7 @@ import { yamlDump } from "../utils/dump.ts";
 import type { LanguageModelV2 } from "@ai-sdk/provider";
 import { z } from "zod";
 import { SystemInfo } from "../system-info/system-info.ts";
+import { FactsStorage } from "../core/types.ts";
 
 /**
  * Public interface for the Agent facade.
@@ -26,7 +27,7 @@ export interface AuditTask {
    * @returns Promise resolving to decision and optional notification text
    */
   auditMetrics(input: {
-    auditAnalysis: string;
+    rawAuditData: string;
     correlationId?: string;
   }): Promise<AuditSummary>;
 }
@@ -35,7 +36,7 @@ export type AuditSummary = {
   isEscalationNeeded: boolean;
   reason: string;
   evidence: { metric: string; value: string }[];
-  auditAnalysis: string;
+  rawAuditData: string;
 };
 
 /**
@@ -50,35 +51,32 @@ export type AuditSummary = {
 export function createAuditTask({
   llmModel,
   systemInfo,
+  factsStorage,
 }: {
   llmModel: LanguageModelV2;
   systemInfo: SystemInfo;
+  factsStorage: FactsStorage;
 }): AuditTask {
   return {
     async auditMetrics(
-      input: { auditAnalysis: string; correlationId?: string },
+      input: { rawAuditData: string; correlationId?: string },
     ): Promise<AuditSummary> {
-      const { auditAnalysis, correlationId } = input;
+      const { rawAuditData, correlationId } = input;
 
       log({
         mod: "agent",
         event: "process_audit_results_start",
         correlationId,
-        analysisLength: auditAnalysis.length,
+        analysisLength: rawAuditData.length,
       });
 
       try {
-        log({
-          messages: yamlDump(auditAnalysis),
-        });
-
+        const prompt = await generateAuditSystemPrompt({ systemInfo, factsStorage, rawAuditData });
+        log({ mod: "agent", event: "process_audit_results_message", message: prompt });
         // Generate LLM decision
         const { object } = await generateObject({
           model: llmModel,
-          messages: [
-            { role: "system", content: generateAuditSystemPrompt(systemInfo) },
-            { role: "user", content: auditAnalysis },
-          ],
+          messages: [{ role: "system", content: prompt }],
           schema: z.object({
             isEscalationNeeded: z.boolean(),
             reason: z.string(),
@@ -93,7 +91,7 @@ export function createAuditTask({
           data: yamlDump(object),
         });
 
-        return { ...object, auditAnalysis: auditAnalysis };
+        return { ...object, rawAuditData: rawAuditData };
       } catch (error) {
         log({
           mod: "agent",
@@ -107,7 +105,13 @@ export function createAuditTask({
   };
 }
 
-function generateAuditSystemPrompt(systemInfo: SystemInfo) {
+async function generateAuditSystemPrompt(
+  { systemInfo, factsStorage, rawAuditData }: {
+    systemInfo: SystemInfo;
+    factsStorage: FactsStorage;
+    rawAuditData: string;
+  },
+) {
   return `Server Health Auditor (OK-or-NOT OK)
 
 # ROLE
@@ -115,12 +119,10 @@ You are a home server agent named Severin. You decide, from a telemetry snapshot
 - If **OK**: you MUST return JSON object with isEscalationNeeded=false and a concise reason.
 - If **NOT OK**: you MUST return a JSON object with isEscalationNeeded=true, concise reason and key evidence of the problem.
 
-## SYSTEM INFORMATION
-${systemInfo.toMarkdown()}
-
-## INPUT
-- Telemetry snapshot (flat map).
-- If the same metric appears multiple times, use the most recent and/or non-zero value.
+Inputs:
+- **SERVER_INFO** — structured information about OS/distribution, resources, versions, node roles, etc. (source of truth).
+- **FACTS** — stored facts (accepted decisions, policies, paths, environment variables, contacts, etc.). Can be updated via \`add_fact\`, \`update_fact\`, \`delete_fact\` tools.
+- **TELEMETRY_SNAPSHOT**: Telemetry snapshot (flat map).
 
 ## HEALTH VERDICT (use only mandatory+desirable metrics)
 ### Step 1 — systemd/kernel:
@@ -147,6 +149,15 @@ ${systemInfo.toMarkdown()}
 ### Optional confirmations:
   - Inodes: inodes_overall_usage_percent≥80% OR inodes_high_usage_filesystems_count>0 → NOT OK
   - SMART: smart_failed_disks>0 OR bad smart_overall_health → NOT OK
+
+## SERVER_INFO
+${systemInfo.toMarkdown()}
+
+## FACTS
+${await factsStorage.toMarkdown()}
+
+## TELEMETRY_SNAPSHOT
+${rawAuditData}
 
 ## OUTPUT
 {

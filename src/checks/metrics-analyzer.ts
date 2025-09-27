@@ -46,41 +46,61 @@ export class MetricsAnalyzer {
   }
 
   /**
-   * Builds analysis context string for LLM analysis
+   * Builds analysis context string for LLM analysis with changes inline in metric lines
+   *
+   * Instead of showing current metrics and changes separately, this method integrates
+   * significant changes directly into each metric line for better readability.
+   * Example output: "cpu_usage_percent: 4% (+33.33% from 5 min ago, -10% from 30 min ago)"
+   *
    * @param currentMetrics Current metric values
-   * @param significantChanges Significant changes found
-   * @param comparisonMinutes Time periods used for comparison
-   * @returns Formatted context string for LLM
+   * @param significantChanges Significant changes found (filtered by threshold)
+   * @param _comparisonMinutes Time periods used for comparison (unused, kept for API compatibility)
+   * @returns Formatted context string for LLM with changes inline
    */
   buildAnalysisContext(
     currentMetrics: MetricValue[],
     significantChanges: MetricChange[],
-    comparisonMinutes: readonly number[],
+    _comparisonMinutes: readonly number[],
   ): string {
-    let context = "System Metrics Analysis:\n\n";
+    let context = "";
 
-    // Current metrics
-    const timestamp = currentMetrics.length > 0 ? currentMetrics[0].ts : new Date().toISOString();
-    context += `Current metrics (${timestamp}):\n`;
-    for (const metric of currentMetrics) {
-      context += `${metric.name}: ${metric.value}${metric.unit}\n`;
+    // Group changes by metric name for efficient lookup when building metric lines
+    // This allows us to quickly find all changes for each metric
+    const changesByMetric = new Map<string, MetricChange[]>();
+    for (const change of significantChanges) {
+      if (!changesByMetric.has(change.name)) {
+        changesByMetric.set(change.name, []);
+      }
+      changesByMetric.get(change.name)!.push(change);
     }
 
-    // Significant changes
-    if (significantChanges.length > 0) {
-      context += "\nSignificant changes";
-      if (comparisonMinutes.length > 0) {
-        context += ` in last ${Math.min(...comparisonMinutes)} minutes`;
-      }
-      context += ":\n";
+    // Build current metrics section with changes integrated inline
+    const timestamp = currentMetrics.length > 0 ? currentMetrics[0].ts : new Date().toISOString();
+    for (const metric of currentMetrics) {
+      // Start with metric name and current value
+      context += `- ${metric.name}: ${metric.value}${metric.unit}`;
 
-      for (const change of significantChanges) {
-        context += `${change.name}: ${change.historical} → ${change.current} (${
-          this.formatDiff(change.diff)
-        })\n`;
+      // Add significant changes for this metric directly in the line
+      const metricChanges = changesByMetric.get(metric.name) || [];
+      if (metricChanges.length > 0) {
+        const changeParts: string[] = [];
+        for (const change of metricChanges) {
+          // Calculate how many minutes ago this change occurred
+          // This gives context about which time period this change represents
+          const currentTime = new Date(timestamp);
+          const historicalTime = new Date(change.historicalTs);
+          const minutesAgo = Math.round(
+            (currentTime.getTime() - historicalTime.getTime()) / (1000 * 60),
+          );
+
+          // Format as "percentage from X min ago"
+          changeParts.push(`${this.formatDiff(change.diff)} from ${minutesAgo} min ago`);
+        }
+        // Join multiple changes with commas for readability
+        context += ` (${changeParts.join(", ")})`;
       }
-    } else {
-      context += "\nNo significant changes detected.\n";
+
+      context += "\n";
     }
 
     return context;

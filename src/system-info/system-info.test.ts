@@ -26,10 +26,10 @@ Deno.test("SystemInfo.toMarkdown - identification only", () => {
 
   assertEquals(
     result,
-    `Host: test-host
-OS: Ubuntu 22.04
-Kernel: 5.15.0
-Architecture: x86_64`,
+    `- Host: test-host
+- OS: Ubuntu 22.04
+- Kernel: 5.15.0
+- Architecture: x86_64`,
   );
 });
 
@@ -50,9 +50,9 @@ Deno.test("SystemInfo.toMarkdown - platform info", () => {
 
   assertEquals(
     result,
-    `CPU: Intel Xeon (8 cores)
-Memory: 16G total
-Virtualization: kvm`,
+    `- CPU: Intel Xeon (8 cores)
+- Memory: 16G total
+- Virtualization: kvm`,
   );
 });
 
@@ -68,9 +68,9 @@ Deno.test("SystemInfo.toMarkdown - storage info", () => {
 
   assertEquals(
     result,
-    `Block devices: sda, sdb, nvme0n1
-Mount points: /, /home, /var
-Docker mounts: 5`,
+    `- Block devices: sda, sdb, nvme0n1
+- Mount points: /, /home, /var
+- Docker mounts: 5`,
   );
 });
 
@@ -87,10 +87,10 @@ Deno.test("SystemInfo.toMarkdown - network info", () => {
 
   assertEquals(
     result,
-    `Network interfaces: 192.168.1.100, 10.0.0.50
-DNS: 8.8.8.8
-Docker interfaces: 3
-Docker ports: 7`,
+    `- Network interfaces: 192.168.1.100, 10.0.0.50
+- DNS: 8.8.8.8
+- Docker interfaces: 3
+- Docker ports: 7`,
   );
 });
 
@@ -108,11 +108,11 @@ Deno.test("SystemInfo.toMarkdown - system info", () => {
 
   assertEquals(
     result,
-    `Init system: systemd
-Service manager: systemd
-Firewall: ufw
-Package managers: apt
-Container runtimes: docker`,
+    `- Init system: systemd
+- Service manager: systemd
+- Firewall: ufw
+- Package managers: apt
+- Container runtimes: docker`,
   );
 });
 
@@ -127,8 +127,8 @@ Deno.test("SystemInfo.toMarkdown - agent info", () => {
 
   assertEquals(
     result,
-    `Agent path: /usr/bin/deno
-Agent PID: 12345`,
+    `- Agent path: /usr/bin/deno
+- Agent PID: 12345`,
   );
 });
 
@@ -143,8 +143,8 @@ Deno.test("SystemInfo.toMarkdown - security info", () => {
 
   assertEquals(
     result,
-    `Firewall status: configured
-SELinux/AppArmor: none`,
+    `- Firewall status: configured
+- SELinux/AppArmor: none`,
   );
 });
 
@@ -163,8 +163,8 @@ Deno.test("SystemInfo.toMarkdown - time and cloud info", () => {
 
   assertEquals(
     result,
-    `Timezone: Europe/Moscow
-Cloud providers: AWS`,
+    `- Cloud providers: AWS
+- Timezone: Europe/Moscow`,
   );
 });
 
@@ -222,6 +222,7 @@ Deno.test("SystemInfo.toMarkdown - complete system info", () => {
   };
 
   systemInfo.time = {
+    current: "2025-01-01T00:00:00Z",
     timezone: "UTC",
   };
 
@@ -233,31 +234,32 @@ Deno.test("SystemInfo.toMarkdown - complete system info", () => {
 
   const result = systemInfo.toMarkdown();
 
-  const expected = `Host: server.example.com
-OS: Ubuntu 22.04 LTS
-Kernel: 5.15.0-41-generic
-Architecture: x86_64
-CPU: Intel Xeon E5-2680 (16 cores)
-Memory: 64G total
-Virtualization: kvm
-Block devices: sda, sdb
-Mount points: /, /home, /var, /tmp
-Docker mounts: 2
-Network interfaces: 192.168.1.10, 10.0.0.10
-DNS: 8.8.8.8 8.8.4.4
-Docker interfaces: 1
-Docker ports: 3
-Init system: systemd
-Service manager: systemd
-Firewall: ufw
-Package managers: apt
-Container runtimes: docker
-Timezone: UTC
-Cloud providers: AWS
-Agent path: /usr/local/bin/deno
-Agent PID: 98765
-Firewall status: configured
-SELinux/AppArmor: none`;
+  const expected = `- Host: server.example.com
+- OS: Ubuntu 22.04 LTS
+- Kernel: 5.15.0-41-generic
+- Architecture: x86_64
+- CPU: Intel Xeon E5-2680 (16 cores)
+- Memory: 64G total
+- Virtualization: kvm
+- Block devices: sda, sdb
+- Mount points: /, /home, /var, /tmp
+- Docker mounts: 2
+- Network interfaces: 192.168.1.10, 10.0.0.10
+- DNS: 8.8.8.8 8.8.4.4
+- Docker interfaces: 1
+- Docker ports: 3
+- Init system: systemd
+- Service manager: systemd
+- Firewall: ufw
+- Package managers: apt
+- Container runtimes: docker
+- Cloud providers: AWS
+- Agent path: /usr/local/bin/deno
+- Agent PID: 98765
+- Firewall status: configured
+- SELinux/AppArmor: none
+- Timezone: UTC
+- Current time: 2025-01-01T00:00:00Z`;
 
   assertEquals(result, expected);
 });
@@ -273,10 +275,10 @@ Deno.test("SystemInfo.toMarkdown - partial data", () => {
 
   const result = systemInfo.toMarkdown();
 
-  const expected = `Host: test
-CPU: Test CPU (4 cores)
-Init system: init
-Agent PID: 42`;
+  const expected = `- Host: test
+- CPU: Test CPU (4 cores)
+- Init system: init
+- Agent PID: 42`;
 
   assertEquals(result, expected);
 });
