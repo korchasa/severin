@@ -7,12 +7,7 @@ import {
   assertStringIncludes,
   assertStringIncludes as assertIncludes,
 } from "@std/assert";
-import {
-  initializeLogger,
-  log,
-  logOutgoingMessage,
-  logOutgoingMessageNoContext,
-} from "./logger.ts";
+import { initializeLogger, log } from "./logger.ts";
 
 // Mock console.log to capture output
 let capturedLogs: string[] = [];
@@ -28,56 +23,6 @@ function setupConsoleMock() {
 function restoreConsoleMock() {
   console.log = originalConsoleLog;
 }
-
-Deno.test("logOutgoingMessage: logs outgoing message with context (JSON format)", () => {
-  setupConsoleMock();
-
-  try {
-    initializeLogger("json");
-
-    // Create mock context
-    const mockCtx = {
-      update: { update_id: 123 },
-      chat: { id: 456 },
-      message: { message_id: 789 },
-      _cid: "test-correlation-id",
-    } as unknown as Parameters<typeof logOutgoingMessage>[0];
-
-    logOutgoingMessage(mockCtx, "reply", 456, "Hello world");
-
-    assertEquals(capturedLogs.length, 1);
-    const logData = JSON.parse(capturedLogs[0]);
-
-    assertEquals(logData.mod, "tg");
-    assertEquals(logData.event, "message_out");
-    assertEquals(logData.method, "reply");
-    assertEquals(logData.message_text, "Hello world");
-  } finally {
-    restoreConsoleMock();
-  }
-});
-
-Deno.test("logOutgoingMessageNoContext: logs outgoing message without context (JSON format)", () => {
-  setupConsoleMock();
-
-  try {
-    initializeLogger("json");
-
-    logOutgoingMessageNoContext("sendMessage", 12345, "Test message");
-
-    assertEquals(capturedLogs.length, 1);
-    const logData = JSON.parse(capturedLogs[0]);
-
-    assertEquals(logData.mod, "tg");
-    assertEquals(logData.event, "message_out");
-    assertEquals(logData.method, "sendMessage");
-    assertEquals(logData.chat_id, 12345);
-    assertEquals(logData.message_text, "Test message");
-    assertEquals(logData.source, "scheduler");
-  } finally {
-    restoreConsoleMock();
-  }
-});
 
 Deno.test("log: basic structured logging (pretty format by default)", () => {
   setupConsoleMock();

@@ -40,7 +40,8 @@ Set environment variables:
 
 - `AGENT_DATA_DIR` - directory for storing data files (default: "./data")
 - `LOGGING_FORMAT` - log output format: "pretty" or "json" (default: "pretty")
-- `AGENT_MEMORY_MAX_SYMBOLS` - maximum total symbols to store in conversation history (default: 20000)
+- `AGENT_MEMORY_MAX_SYMBOLS` - maximum total symbols to store in conversation history
+  (default: 20000)
 - `AGENT_TOOLS_TIMEOUT_MS` - timeout for tool execution in milliseconds (default: 30000)
 - `AGENT_TOOLS_MAX_OUTPUT_BYTES` - maximum output size for tools in bytes (default: 200000)
 - `AGENT_LLM_ADDITIONAL_PROMPT` - additional custom instructions for LLM system prompt

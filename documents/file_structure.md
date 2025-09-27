@@ -79,7 +79,7 @@ src/
 ├── telegram/
 │   ├── router.ts            # Command routing and text message handling
 │   ├── middlewares.ts       # Telegram middleware and logging
-│   ├── telegram-format.ts   # Telegram MarkdownV2 formatting utilities
+│   ├── telegram-format.ts   # Telegram HTML formatting utilities
 │   ├── telegram-format.test.ts
 │   └── handlers/
 │       ├── command-reset-handler.ts    # History reset command handler

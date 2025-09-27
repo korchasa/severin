@@ -10,8 +10,8 @@
 import type { Context } from "grammy";
 import type { Config } from "../../config/types.ts";
 import type { MainAgent } from "../../agent/agent.ts";
-import { logUpdate } from "../../utils/logger.ts";
-import { markdownToTelegramMarkdownV2 } from "../telegram-format.ts";
+import { log } from "../../utils/logger.ts";
+import { markdownToTelegramHTML } from "../telegram-format.ts";
 
 /**
  * Creates a text message handler that processes any text message as an LLM query
@@ -26,7 +26,12 @@ export function createTextMessageHandler(
 
     // Skip empty messages or very short messages (likely typos)
     if (!text || text.length < 2) {
-      logUpdate(ctx, "text_message_ignored", { reason: "too_short", length: text?.length || 0 });
+      log({
+        "mod": "tg",
+        "event": "text_message_ignored",
+        "reason": "too_short",
+        "length": text?.length || 0,
+      });
       return;
     }
 
@@ -36,7 +41,11 @@ export function createTextMessageHandler(
     }
 
     // Log the text message being sent to LLM
-    logUpdate(ctx, "text_message_to_llm", { textLength: text.length });
+    log({
+      "mod": "tg",
+      "event": "text_message_to_llm",
+      "text_length": text.length,
+    });
 
     // Send typing action to show the bot is processing
     await ctx.api.sendChatAction(ctx.chat!.id, "typing");
@@ -48,25 +57,26 @@ export function createTextMessageHandler(
         correlationId: ctx.update.update_id?.toString(),
       });
 
-      // Log raw agent response text
-      logUpdate(ctx, "agent_response_raw", {
-        response_text: response,
-        response_length: response.length,
-      });
-
       // Don't send empty responses to avoid Telegram API errors
       if (response.trim()) {
-        await ctx.reply(markdownToTelegramMarkdownV2(response), { parse_mode: "MarkdownV2" });
+        await ctx.reply(markdownToTelegramHTML(response), { parse_mode: "HTML" });
       }
-      logUpdate(ctx, "agent_response");
+      log({
+        "mod": "tg",
+        "event": "agent_response",
+      });
     } catch (error) {
       await ctx.reply(
-        markdownToTelegramMarkdownV2("An error occurred while processing the request."),
+        markdownToTelegramHTML("An error occurred while processing the request."),
         {
-          parse_mode: "MarkdownV2",
+          parse_mode: "HTML",
         },
       );
-      logUpdate(ctx, "llm_error", { message: (error as Error).message });
+      log({
+        "mod": "tg",
+        "event": "llm_error",
+        "message": (error as Error).message,
+      });
     }
   };
 }

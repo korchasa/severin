@@ -39,6 +39,7 @@
   - Text messages without `/` processed as LLM queries.
   - Authorizes updates; rejects non-owners safely.
   - Long polling only (no webhook).
+  - Messages formatted using HTML markup for rich text display.
 
 ### ✅ FR-2 Command Routing & Validation
 
@@ -255,7 +256,7 @@
 - **Protocols/Data formats:** JSON payloads (Telegram long polling); typed tool schemas; JSONL
   history files.
 - **UI/UX:** Plain text commands; optional inline keyboards; concise messages; long outputs
-  summarized with file attachments.
+  summarized with file attachments; rich text formatting via HTML markup.
 
 ## 6. Acceptance Criteria
 

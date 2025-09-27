@@ -145,7 +145,7 @@ interface Config {
 Constants are centralized in `createDefaultConfig()` and environment variables overlay defaults.
 
 The `systemPrompt` defines the LLM's role as home server agent with terminal tool access for system
-tasks. Rich text formatting uses `markdownToTelegramMarkdownV2` converter.
+tasks. Rich text formatting uses `markdownToTelegramHTML` converter.
 
 ### 3.3. File Hierarchy
 
@@ -342,7 +342,7 @@ interface Check {
   reasoning.
 - Model: any compatible model via Vercel AI SDK (e.g., OpenAI gpt-4o-mini, Claude, etc.).
 - Response formats: natural text for conversations, structured decisions for monitoring.
-- **Text Formatting:** `markdownToTelegramMarkdownV2` converts Markdown to Telegram format.
+- **Text Formatting:** `markdownToTelegramHTML` converts Markdown to Telegram HTML format.
 
 ### 4.11. LLM Tools
 
@@ -404,6 +404,21 @@ interface Check {
 - Correlation ID per Update/scheduled run.
 - Outgoing messages logged via middleware.
 - Secrets filtered from logs.
+
+### 4.16. Telegram Message Formatting
+
+- **Format:** HTML markup with centralized escaping.
+- **Converter:** `markdownToTelegramHTML` transforms Markdown to Telegram HTML.
+- **Supported elements:**
+  - Headers `# ## ###` → `<b>Header</b>`
+  - **Bold** `**text**` → `<b>text</b>`
+  - _Italic_ `*text*` `_text_` → `<i>text</i>`
+  - `Inline code` → `<code>code</code>`
+  - `` ```fenced code``` `` → `<pre><code>code</code></pre>`
+  - `[Link](url)` → `<a href="url">text</a>`
+  - `> Blockquote` → `<blockquote>text</blockquote>`
+- **Parse mode:** `HTML`.
+- **Safety:** HTML entities escaped centrally.
 
 ---
 
@@ -629,7 +644,7 @@ sequenceDiagram
 
 | SRS FR/NFR                                     | How covered in SDS                                                                                                   |
 | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| FR-1 Telegram bot (long polling)               | Sections 4.1, 4.2, `grammy` choice; no webhook                                                                       |
+| FR-1 Telegram bot (long polling)               | Sections 4.1, 4.2, `grammy` choice; no webhook; HTML formatting (4.16)                                               |
 | FR-2 Routing & validation                      | 4.3 (command registry), `zod`, logs with id                                                                          |
 | FR-3 Terminal tool (LLM-only)                  | 4.11 (Terminal Tool, logging)                                                                                        |
 | FR-4 Periodic metrics scheduler                | 4.6 (jitter, singleflight), 5.2 (metrics collection & LLM analysis)                                                  |
@@ -698,7 +713,7 @@ src/
   telegram/
     router.ts            # Command routing and text message handling
     middlewares.ts       # Telegram middleware and logging
-    telegram-format.ts   # Telegram MarkdownV2 formatting utilities
+    telegram-format.ts   # Telegram HTML formatting utilities
     telegram-format.test.ts
     handlers/
       command-reset-handler.ts    # History reset command handler
