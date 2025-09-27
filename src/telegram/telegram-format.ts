@@ -29,6 +29,20 @@ export function toCodeBlock(text: string): string {
 }
 
 /**
+ * States for the finite state machine used in markdownToTelegramMarkdownV2
+ */
+enum FSMState {
+  NORMAL = "normal",
+  INLINE_CODE = "inline_code",
+  FENCED_CODE = "fenced_code",
+  LINK_TEXT = "link_text",
+  LINK_URL = "link_url",
+  HEADER = "header",
+  BOLD = "bold",
+  ITALIC = "italic",
+}
+
+/**
  * Convert standard Markdown (subset) to Telegram MarkdownV2-compatible formatting without
  * over-escaping. The goal is to preserve common LLM formatting:
  * - # ## ### #### ##### ###### Header -> *Header* (headers converted to bold)
@@ -42,123 +56,249 @@ export function toCodeBlock(text: string): string {
  * Note: This is a minimal PoC converter focused on basic constructs and avoiding
  * modifications inside code blocks and inline code. Headers are converted to bold
  * text to maintain visual prominence in Telegram messages.
+ *
+ * Implementation uses a finite state machine for clear state transitions.
  */
-export function markdownToTelegramMarkdownV2(input: string): string {
-  if (!input) return input;
+export function markdownToTelegramMarkdownV2(
+  input: string | null | undefined,
+): string {
+  if (!input) return "";
 
-  // Split by fenced code blocks (```...```), keep delimiters
-  const parts = input.split(/(```[\s\S]*?```)/g);
-
-  const transformNonCode = (segment: string): string => {
-    if (!segment) return segment;
-
-    // Protect inline code spans `...` using safe placeholders
-    const codePlaceholders: string[] = [];
-    const CODE_TAG = "__PLACEHOLDER_CODE_";
-    let protectedSegment = segment.replace(/`([^`]+)`/g, (_m, p1) => {
-      const idx = codePlaceholders.push("`" + p1 + "`") - 1;
-      return CODE_TAG + idx + "__";
-    });
-
-    // Protect links [text](url)
-    const linkPlaceholders: string[] = [];
-    const LINK_TAG = "__PLACEHOLDER_LINK_";
-    protectedSegment = protectedSegment.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, text, url) => {
-      const idx = linkPlaceholders.push("[" + text + "](" + url + ")") - 1;
-      return LINK_TAG + idx + "__";
-    });
-
-    // Protect headers: temporarily replace with placeholders to avoid conflicts with italic processing
-    // Headers (# ## ### etc.) are converted to bold text (*text*) for visual prominence in Telegram
-    const headerPlaceholders: string[] = [];
-    const HEADER_TAG = "__PLACEHOLDER_HEADER_";
-    protectedSegment = protectedSegment.replace(/^#{1,6}\s+(.+)$/gm, (_m, text) => {
-      const idx = headerPlaceholders.push("*" + text + "*") - 1;
-      return HEADER_TAG + idx + "__";
-    });
-
-    // Italic (asterisks): *text* (but not already bold) -> _text_
-    let tmp = protectedSegment.replace(
-      /(^|[^*])\*(?!\*)([^*]+)\*(?!\*)/g,
-      (_m, pre, body) => `${pre}_${body}_`,
-    );
-
-    // Bold: **text** -> *text*
-    tmp = tmp.replace(/\*\*([^*]+)\*\*/g, "*$1*");
-
-    // Restore headers, links and inline code
-    tmp = tmp.replace(
-      new RegExp(HEADER_TAG + "(\\d+)__", "g"),
-      (_m, i) => headerPlaceholders[Number(i)],
-    );
-    tmp = tmp.replace(
-      new RegExp(LINK_TAG + "(\\d+)__", "g"),
-      (_m, i) => linkPlaceholders[Number(i)],
-    );
-    tmp = tmp.replace(
-      new RegExp(CODE_TAG + "(\\d+)__", "g"),
-      (_m, i) => codePlaceholders[Number(i)],
-    );
-
-    return tmp;
-  };
-
-  const result = parts
-    .map((part) => (part.startsWith("```") ? part : transformNonCode(part)))
-    .join("");
-
-  // Final escaping: escape remaining special characters that are not part of MarkdownV2 formatting
-  // Characters to escape: ~ > # + - = | { } . ! (excluding _ * [ ] ` which are used in formatting)
-  // But don't escape inside URLs in links: skip content inside [text](url)
-  let final = "";
+  let result = "";
+  let state = FSMState.NORMAL;
   let i = 0;
-  while (i < result.length) {
-    if (result[i] === "[" && i > 0 && result[i - 1] !== "\\") {
-      // Possible link start, find matching ] and then (
-      const bracketStart = i;
-      i++;
-      while (i < result.length && result[i] !== "]") {
-        i++;
-      }
-      if (
-        i < result.length && result[i] === "]" && i + 1 < result.length && result[i + 1] === "("
-      ) {
-        // This is [text](url), copy the entire link without escaping
-        const linkStart = bracketStart;
-        let parens = 0;
-        while (i < result.length) {
-          if (result[i] === "(") parens++;
-          else if (result[i] === ")") {
-            parens--;
-            if (parens === 0) {
-              i++; // include the )
-              break;
-            }
+  let isStartOfLine = true;
+
+  while (i < input.length) {
+    const char = input[i];
+    const nextChar = i + 1 < input.length ? input[i + 1] : "";
+    const prevChar = i > 0 ? input[i - 1] : "";
+
+    switch (state) {
+      case FSMState.NORMAL: {
+        if (char === "`" && nextChar === "`" && input[i + 2] === "`") {
+          // Start of fenced code block
+          result += "```";
+          state = FSMState.FENCED_CODE;
+          i += 3;
+          continue;
+        } else if (char === "`") {
+          // Start of inline code
+          result += "`";
+          state = FSMState.INLINE_CODE;
+          i++;
+          continue;
+        } else if (char === "[" && prevChar !== "\\") {
+          // Start of link
+          result += "[";
+          state = FSMState.LINK_TEXT;
+          i++;
+          continue;
+        } else if (isStartOfLine && char === "#" && /^#{1,6}\s/.test(input.slice(i))) {
+          // Start of header - convert to bold
+          result += "*";
+          state = FSMState.HEADER;
+          // Skip the # characters and space
+          while (i < input.length && (input[i] === "#" || input[i] === " ")) {
+            i++;
+          }
+          continue;
+        } else if (char === "*" && nextChar === "*") {
+          // Start of bold
+          result += "*";
+          state = FSMState.BOLD;
+          i += 2;
+          continue;
+        } else if (
+          (char === "*" || char === "_") && !isBoldDelimiter(char, nextChar) &&
+          isItalicStart(char, prevChar)
+        ) {
+          // Start of italic (but not bold)
+          result += "_";
+          state = FSMState.ITALIC;
+          i++;
+          continue;
+        } else {
+          // Regular character - escape if needed
+          result += escapeCharIfNeeded(char);
+          if (char === "\n") {
+            isStartOfLine = true;
+          } else if (!/\s/.test(char)) {
+            isStartOfLine = false;
           }
           i++;
+          continue;
         }
-        final += result.slice(linkStart, i);
-      } else {
-        // Not a link, process normally
-        i = bracketStart;
-        const char = result[i];
-        if ("~>#+-=|{}!.\\(\\)".includes(char)) {
-          final += "\\" + char;
+      }
+
+      case FSMState.INLINE_CODE: {
+        if (char === "`") {
+          // End of inline code
+          result += "`";
+          state = FSMState.NORMAL;
         } else {
-          final += char;
+          // Inside code - no escaping
+          result += char;
         }
         i++;
+        continue;
       }
-    } else {
-      const char = result[i];
-      if ("~>#+-=|{}!.\\(\\)".includes(char)) {
-        final += "\\" + char;
-      } else {
-        final += char;
+
+      case FSMState.FENCED_CODE: {
+        if (char === "`" && nextChar === "`" && input[i + 2] === "`") {
+          // End of fenced code block
+          result += "```";
+          state = FSMState.NORMAL;
+          i += 3;
+        } else {
+          // Inside code block - no escaping
+          result += char;
+          i++;
+        }
+        continue;
       }
-      i++;
+
+      case FSMState.LINK_TEXT: {
+        if (char === "]" && nextChar === "(") {
+          // End of link text, start of URL
+          result += "](";
+          state = FSMState.LINK_URL;
+          i += 2;
+        } else {
+          // Inside link text - no escaping
+          result += char;
+          i++;
+        }
+        continue;
+      }
+
+      case FSMState.LINK_URL: {
+        if (char === ")") {
+          // End of link URL
+          result += ")";
+          state = FSMState.NORMAL;
+        } else {
+          // Inside link URL - no escaping
+          result += char;
+        }
+        i++;
+        continue;
+      }
+
+      case FSMState.HEADER: {
+        if (char === "\n") {
+          // End of header line
+          result += "*\n";
+          state = FSMState.NORMAL;
+          isStartOfLine = true;
+        } else {
+          // Inside header - no escaping
+          result += char;
+          isStartOfLine = false;
+        }
+        i++;
+        continue;
+      }
+
+      case FSMState.BOLD: {
+        if (char === "*" && nextChar === "*") {
+          // End of bold
+          result += "*";
+          state = FSMState.NORMAL;
+          i += 2;
+        } else {
+          // Inside bold - no escaping
+          result += char;
+          i++;
+        }
+        continue;
+      }
+
+      case FSMState.ITALIC: {
+        if ((char === "*" || char === "_") && !isBoldDelimiter(char, nextChar)) {
+          // End of italic
+          result += "_";
+          state = FSMState.NORMAL;
+          i++;
+        } else {
+          // Inside italic - no escaping
+          result += char;
+          i++;
+        }
+        continue;
+      }
     }
   }
 
-  return final;
+  // Handle unclosed states at end of input
+  switch (state) {
+    case FSMState.HEADER:
+      result += "*";
+      break;
+    case FSMState.BOLD:
+      result += "*";
+      break;
+    case FSMState.ITALIC:
+      result += "_";
+      break;
+  }
+
+  // Final pass: escape single underscores that are not part of italic formatting
+  return escapeSingleUnderscores(result);
+}
+
+/**
+ * Check if character sequence represents bold delimiter (**)
+ */
+function isBoldDelimiter(char: string, nextChar: string): boolean {
+  return char === "*" && nextChar === "*";
+}
+
+/**
+ * Check if character can start italic formatting
+ * Italic starts after whitespace, punctuation, or at the beginning
+ */
+function isItalicStart(_char: string, prevChar: string): boolean {
+  // Allow italic to start at the beginning of input or after whitespace/punctuation
+  return prevChar === "" || /\s|[({[\].,!?;:]/.test(prevChar);
+}
+
+/**
+ * Escape special characters that need escaping in Telegram MarkdownV2
+ * Characters to escape: ~ > # + - = | { } . ! (excluding _ * [ ] ` \ which are used in formatting)
+ */
+function escapeCharIfNeeded(char: string): string {
+  const charsToEscape = "~>#+-=|{}!.()";
+  return charsToEscape.includes(char) ? "\\" + char : char;
+}
+
+/**
+ * Escape single underscores that are not part of italic formatting to prevent unclosed entities
+ */
+function escapeSingleUnderscores(text: string): string {
+  // Collect all italic and link matches
+  const italicMatches: string[] = [];
+  const linkMatches: string[] = [];
+
+  // Replace italic and links with placeholders (using unique symbols)
+  let result = text.replace(/_([^_]+)_/g, (match) => {
+    const idx = italicMatches.push(match) - 1;
+    return `\x00ITALIC${idx}\x00`;
+  }).replace(/\[(.*?)\]\((.*?)\)/g, (match) => {
+    const idx = linkMatches.push(match) - 1;
+    return `\x00LINK${idx}\x00`;
+  });
+
+  // Escape all remaining underscores
+  result = result.replace(/_/g, "\\_");
+
+  // Restore italic and links
+  for (let i = italicMatches.length - 1; i >= 0; i--) {
+    result = result.replace(new RegExp(`\\x00ITALIC${i}\\x00`, "g"), italicMatches[i]);
+  }
+  for (let i = linkMatches.length - 1; i >= 0; i--) {
+    result = result.replace(new RegExp(`\\x00LINK${i}\\x00`, "g"), linkMatches[i]);
+  }
+
+  return result;
 }
