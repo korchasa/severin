@@ -95,7 +95,7 @@ class HealthScheduler {
 
     // 4. Use agent to decide if notification is needed
     const auditSummary = await this.state.auditTask.auditMetrics({
-      auditAnalysis: analysis.analysisContext,
+      rawAuditData: analysis.analysisContext,
       correlationId: `scheduler-${now}`,
     });
 
@@ -109,7 +109,7 @@ class HealthScheduler {
 
     // 5. Use diagnostician to diagnose the problem
     const diagnoseSummary = await this.state.diagnoseTask.diagnose({
-      auditAnalysis: auditSummary.auditAnalysis,
+      auditAnalysis: auditSummary.rawAuditData,
       reason: auditSummary.reason,
       evidence: auditSummary.evidence,
     });

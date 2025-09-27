@@ -1,170 +1,258 @@
 /**
- * Tests for facts management tools and functions
- * Tests the execute* functions that implement fact CRUD operations
- * and validate the LLM tool integration
+ * Tests for facts management tools
+ * Tests that tools correctly call Storage methods
  */
 
 import { assertEquals, assertExists } from "@std/assert";
-import { executeAddFact, executeDeleteFact, executeUpdateFact } from "./facts.ts";
+import { createAddFactTool, createDeleteFactTool, createUpdateFactTool } from "./facts.ts";
 import type { FactsStorage } from "../../core/types.ts";
 
 // Mock facts storage for testing
 class MockFactsStorage {
-  facts: Array<{ id: string; content: string; ts: string }> = [];
+  addCalledWith: { content: string }[] = [];
+  deleteCalledWith: string[] = [];
+  updateCalledWith: { id: string; content: string }[] = [];
 
-  async add(factInput: { content: string }) {
-    // Mock async operation
+  async add(factInput: { content: string }): Promise<
+    { success: true; fact: { id: string; content: string; ts: string } } | {
+      success: false;
+      error: string;
+    }
+  > {
     await Promise.resolve();
-    const fact = {
-      id: `fact-${this.facts.length + 1}`,
-      content: factInput.content,
-      ts: new Date().toISOString(),
+    this.addCalledWith.push(factInput);
+    return {
+      success: true as const,
+      fact: {
+        id: `fact-${this.addCalledWith.length}`,
+        content: factInput.content,
+        ts: new Date().toISOString(),
+      },
     };
-    this.facts.push(fact);
-    return fact;
   }
 
-  async getAll() {
-    // Mock async operation
+  async delete(id: string): Promise<
+    { success: true; id: string } | { success: false; error: string; id: string }
+  > {
     await Promise.resolve();
-    return [...this.facts];
+    this.deleteCalledWith.push(id);
+    return {
+      success: true as const,
+      id,
+    };
   }
 
-  async getById(id: string) {
-    // Mock async operation
-    await Promise.resolve();
-    return this.facts.find((f) => f.id === id) || null;
-  }
-
-  async update(id: string, content: string) {
-    // Mock async operation
-    await Promise.resolve();
-    const index = this.facts.findIndex((f) => f.id === id);
-    if (index === -1) return null;
-
-    this.facts[index].content = content;
-    this.facts[index].ts = new Date().toISOString();
-    return this.facts[index];
-  }
-
-  async delete(id: string) {
-    // Mock async operation
-    await Promise.resolve();
-    this.facts = this.facts.filter((f) => f.id !== id);
-    return true; // Always return true - deleting non-existent fact is not an error
-  }
-
-  async toMarkdown() {
-    // Mock async operation
-    await Promise.resolve();
-    if (this.facts.length === 0) {
-      return "No stored facts.";
+  async update(id: string, content: string): Promise<
+    { success: true; fact: { id: string; content: string; ts: string } } | {
+      success: false;
+      error: string;
+      id: string;
     }
-
-    // Sort facts by timestamp (newest first) and take first 20
-    const recentFacts = [...this.facts]
-      .sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime())
-      .slice(0, 20);
-
-    const sections: string[] = [];
-
-    recentFacts.forEach((fact, index) => {
-      const date = new Date(fact.ts).toLocaleDateString();
-      const truncatedContent = fact.content.length > 200
-        ? fact.content.slice(0, 200) + "..."
-        : fact.content;
-      sections.push(`${index + 1}. ${truncatedContent} (${date})`);
-    });
-
-    if (this.facts.length > 20) {
-      sections.push(`... and ${this.facts.length - 20} older facts`);
+  > {
+    await Promise.resolve();
+    this.updateCalledWith.push({ id, content });
+    // Return updated fact for existing IDs, error for non-existent
+    if (id === "existing-id") {
+      return {
+        success: true as const,
+        fact: {
+          id,
+          content,
+          ts: new Date().toISOString(),
+        },
+      };
     }
+    return {
+      success: false as const,
+      error: "Fact not found",
+      id,
+    };
+  }
 
-    return sections.join("\n");
+  // Other methods not used in tests
+  async getAll(): Promise<
+    { success: true; facts: readonly { id: string; content: string; ts: string }[] } | {
+      success: false;
+      error: string;
+    }
+  > {
+    await Promise.resolve();
+    return { success: true as const, facts: [] };
+  }
+
+  async getById(_id: string): Promise<
+    { success: true; fact: { id: string; content: string; ts: string } } | {
+      success: false;
+      error: string;
+    }
+  > {
+    await Promise.resolve();
+    return { success: false as const, error: "Not found" };
+  }
+  async toMarkdown(): Promise<string> {
+    await Promise.resolve();
+    return "";
   }
 }
 
-Deno.test("executeAddFact: adds fact successfully", async () => {
+Deno.test("createAddFactTool: calls storage.add with correct content", async () => {
   const storage = new MockFactsStorage();
+  const tool = createAddFactTool(storage);
 
-  const result = await executeAddFact(storage, { content: "Test fact content" });
+  const result = await tool.execute!({ content: "Test fact content" }, {
+    toolCallId: "test-call",
+    messages: [],
+  }) as {
+    success: boolean;
+    fact?: { id: string; content: string; created: string };
+    error?: string;
+  };
 
+  assertEquals(storage.addCalledWith.length, 1);
+  assertEquals(storage.addCalledWith[0].content, "Test fact content");
   assertEquals(result.success, true);
   assertExists(result.fact);
   assertEquals(result.fact.content, "Test fact content");
-  assertExists(result.fact.id);
-  assertExists(result.fact.created);
-
-  // Verify fact was added to storage
-  const allFacts = await storage.getAll();
-  assertEquals(allFacts.length, 1);
-  assertEquals(allFacts[0].content, "Test fact content");
 });
 
-Deno.test("executeAddFact: handles storage error", async () => {
+Deno.test("createAddFactTool: handles storage error", async () => {
   const storage = {
     async add() {
       await Promise.resolve();
-      throw new Error("Storage error");
+      return { success: false as const, error: "Storage error" };
     },
   } as unknown as FactsStorage;
+  const tool = createAddFactTool(storage);
 
-  const result = await executeAddFact(storage, { content: "Test content" });
+  const result = await tool.execute!({ content: "Test content" }, {
+    toolCallId: "test-call",
+    messages: [],
+  }) as { success: boolean; error: string };
 
   assertEquals(result.success, false);
   assertEquals(result.error, "Storage error");
 });
 
-Deno.test("executeDeleteFact: deletes fact successfully", async () => {
+Deno.test("createDeleteFactTool: calls storage.delete with correct id", async () => {
   const storage = new MockFactsStorage();
-  const fact = await storage.add({ content: "Test fact" });
+  const tool = createDeleteFactTool(storage);
 
-  const result = await executeDeleteFact(storage, { id: fact.id });
+  const result = await tool.execute!({ id: "test-id" }, {
+    toolCallId: "test-call",
+    messages: [],
+  }) as { success: boolean; id: string };
 
+  assertEquals(storage.deleteCalledWith.length, 1);
+  assertEquals(storage.deleteCalledWith[0], "test-id");
   assertEquals(result.success, true);
-  assertEquals(result.id, fact.id);
-
-  // Verify fact was deleted
-  const allFacts = await storage.getAll();
-  assertEquals(allFacts.length, 0);
+  assertEquals(result.id, "test-id");
 });
 
-Deno.test("executeDeleteFact: handles non-existent fact", async () => {
-  const storage = new MockFactsStorage();
+Deno.test("createDeleteFactTool: handles storage error", async () => {
+  const storage = {
+    async delete() {
+      await Promise.resolve();
+      return { success: false as const, error: "Storage error", id: "test-id" };
+    },
+  } as unknown as FactsStorage;
+  const tool = createDeleteFactTool(storage);
 
-  const result = await executeDeleteFact(storage, { id: "non-existent-id" });
+  const result = await tool.execute!({ id: "test-id" }, {
+    toolCallId: "test-call",
+    messages: [],
+  }) as { success: boolean; error: string; id: string };
 
-  assertEquals(result.success, true); // Delete of non-existent is considered successful
-  assertEquals(result.id, "non-existent-id");
+  assertEquals(result.success, false);
+  assertEquals(result.error, "Storage error");
+  assertEquals(result.id, "test-id");
 });
 
-Deno.test("executeUpdateFact: updates fact successfully", async () => {
+Deno.test("createUpdateFactTool: calls storage.update with correct id and content", async () => {
   const storage = new MockFactsStorage();
-  const fact = await storage.add({ content: "Original content" });
+  const tool = createUpdateFactTool(storage);
 
-  const result = await executeUpdateFact(storage, { id: fact.id, content: "Updated content" });
+  const result = await tool.execute!({ id: "existing-id", content: "Updated content" }, {
+    toolCallId: "test-call",
+    messages: [],
+  }) as { success: boolean; fact?: { id: string; content: string; updated: string } };
 
+  assertEquals(storage.updateCalledWith.length, 1);
+  assertEquals(storage.updateCalledWith[0].id, "existing-id");
+  assertEquals(storage.updateCalledWith[0].content, "Updated content");
   assertEquals(result.success, true);
   assertExists(result.fact);
   assertEquals(result.fact.content, "Updated content");
-  assertEquals(result.fact.id, fact.id);
-  assertExists(result.fact.updated);
-
-  // Verify fact was updated in storage
-  const allFacts = await storage.getAll();
-  assertEquals(allFacts.length, 1);
-  assertEquals(allFacts[0].content, "Updated content");
 });
 
-Deno.test("executeUpdateFact: handles non-existent fact", async () => {
+Deno.test("createUpdateFactTool: handles non-existent fact", async () => {
   const storage = new MockFactsStorage();
+  const tool = createUpdateFactTool(storage);
 
-  const result = await executeUpdateFact(storage, {
-    id: "non-existent-id",
-    content: "New content",
-  });
+  const result = await tool.execute!({ id: "non-existent-id", content: "New content" }, {
+    toolCallId: "test-call",
+    messages: [],
+  }) as { success: boolean; error: string; id: string };
 
+  assertEquals(storage.updateCalledWith.length, 1);
+  assertEquals(storage.updateCalledWith[0].id, "non-existent-id");
+  assertEquals(storage.updateCalledWith[0].content, "New content");
   assertEquals(result.success, false);
   assertEquals(result.error, "Fact not found");
   assertEquals(result.id, "non-existent-id");
+});
+
+Deno.test("createUpdateFactTool: handles storage error", async () => {
+  const storage = {
+    async update() {
+      await Promise.resolve();
+      return { success: false as const, error: "Storage error", id: "test-id" };
+    },
+  } as unknown as FactsStorage;
+  const tool = createUpdateFactTool(storage);
+
+  const result = await tool.execute!({ id: "test-id", content: "New content" }, {
+    toolCallId: "test-call",
+    messages: [],
+  }) as { success: boolean; error: string; id: string };
+
+  assertEquals(result.success, false);
+  assertEquals(result.error, "Storage error");
+  assertEquals(result.id, "test-id");
+});
+
+Deno.test("createAddFactTool: handles storage error", async () => {
+  const storage = {
+    async add() {
+      await Promise.resolve();
+      return { success: false as const, error: "Storage error" };
+    },
+  } as unknown as FactsStorage;
+  const tool = createAddFactTool(storage);
+
+  const result = await tool.execute!({ content: "New fact" }, {
+    toolCallId: "test-call",
+    messages: [],
+  }) as { success: boolean; error: string };
+
+  assertEquals(result.success, false);
+  assertEquals(result.error, "Storage error");
+});
+
+Deno.test("createDeleteFactTool: handles storage error", async () => {
+  const storage = {
+    async delete() {
+      await Promise.resolve();
+      return { success: false as const, error: "Storage error", id: "test-id" };
+    },
+  } as unknown as FactsStorage;
+  const tool = createDeleteFactTool(storage);
+
+  const result = await tool.execute!({ id: "test-id" }, {
+    toolCallId: "test-call",
+    messages: [],
+  }) as { success: boolean; error: string; id: string };
+
+  assertEquals(result.success, false);
+  assertEquals(result.error, "Storage error");
+  assertEquals(result.id, "test-id");
 });

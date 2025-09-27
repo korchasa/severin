@@ -76,8 +76,8 @@ export async function startAgent(): Promise<void> {
     systemInfo,
     factsStorage,
   });
-  const auditTask = createAuditTask({ llmModel, systemInfo });
-  const diagnoseTask = createDiagnoseTask({ llmModel, terminalTool, systemInfo });
+  const auditTask = createAuditTask({ llmModel, systemInfo, factsStorage });
+  const diagnoseTask = createDiagnoseTask({ llmModel, terminalTool, systemInfo, factsStorage });
 
   // LLM adapter encapsulated within agent
 

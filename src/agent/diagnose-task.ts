@@ -12,6 +12,7 @@ import {
 } from "ai";
 import { stopTool } from "./tools/stop.ts";
 import { SystemInfo } from "../system-info/system-info.ts";
+import { FactsStorage } from "../core/types.ts";
 
 export interface DiagnoseTask {
   /**
@@ -46,10 +47,12 @@ export function createDiagnoseTask({
   llmModel,
   terminalTool,
   systemInfo,
+  factsStorage,
 }: {
   llmModel: LanguageModelV2;
   terminalTool: Tool;
   systemInfo: SystemInfo;
+  factsStorage: FactsStorage;
 }): DiagnoseTask {
   return {
     async diagnose(input: {
@@ -75,14 +78,22 @@ export function createDiagnoseTask({
         lines.push(`- ${item.metric}: ${item.value}`);
       }
 
+      const systemPrompt = await generateDiagnoseSystemPrompt({
+        systemInfo,
+        factsStorage,
+        auditAnalysis: input.auditAnalysis,
+        reason: input.reason,
+        evidence: input.evidence,
+      });
+
       log({
-        messages: yamlDump(lines.join("\n")),
+        messages: yamlDump(systemPrompt),
       });
 
       try {
         const agent = new Agent({
           model: llmModel,
-          system: generateDiagnoseSystemPrompt(systemInfo),
+          system: systemPrompt,
           tools: {
             terminal: terminalTool,
             stop: stopTool(),
@@ -132,24 +143,33 @@ export function createDiagnoseTask({
   };
 }
 
-function generateDiagnoseSystemPrompt(systemInfo: SystemInfo) {
+async function generateDiagnoseSystemPrompt(
+  { systemInfo, factsStorage, auditAnalysis, reason, evidence }: {
+    systemInfo: SystemInfo;
+    factsStorage: FactsStorage;
+    auditAnalysis: string;
+    reason: string;
+    evidence: { metric: string; value: string }[];
+  },
+) {
   return `BED-LLM Terminal Diagnostician
 
 # ROLE
 You are a home server agent named Severin. You must determine the **most likely root cause** using **read-only terminal diagnostics** (minimize calls; 1-5 preferred) and then output a object with short human-readable most likely hypothesis (2–5 sentences). If the problem is not found, return isEscalationNeeded=false. Also, output an array of thoughts about the problem that appeared during your diagnosis.
 
-You receive:
-- the original telemetry snapshot,
-- an escalation payload from the Auditor (\`reason\`, \`evidence\`).
-
-## SYSTEM INFORMATION
-${systemInfo.toMarkdown()}
+Inputs:
+* **TELEMETRY_SNAPSHOT**: the original telemetry snapshot
+* **ESCALATION_PAYLOAD**: an escalation payload from the Auditor (\`reason\`, \`evidence\`).
+* **SERVER_INFO** — structured information about OS/distribution, resources, versions, node roles, etc. (source of truth).
+* **FACTS** — stored facts (accepted decisions, policies, paths, environment variables, contacts, etc.). Can be updated via \`add_fact\`, \`update_fact\`, \`delete_fact\` tools.
 
 ## TOOLS
-terminal — request:
-{ "command": "<shell>", "cwd": "<optional>", "reason": "<why this command is needed>" }
-terminal — response:
-{ "exitCode": <number>, "stdout": "<string>", "stderr": "<string>", "truncated": <boolean>, "durationMs": <number> }
+- **terminal** - execute shell commands:
+  * request: { "command": "<shell>", "cwd": "<optional>", "reason": "<why this command is needed>" }
+  * response: { "exitCode": <number>, "stdout": "<string>", "stderr": "<string>", "truncated": <boolean>, "durationMs": <number> }
+- **add_fact** - add a new fact.
+- **update_fact** - update an existing fact.
+- **delete_fact** - delete a fact.
 
 ## METHOD (BED-LLM)
 - Maintain 3–10 hypotheses H with short rationales and testable predictions.
@@ -212,5 +232,19 @@ Output fields:
   - thoughts: string[] - thoughts about the problem;
 
 You may update and reorder hypotheses as new evidence arrives and stop when one exceeds ~95% plausibility.
+
+## SERVER_INFO
+${systemInfo.toMarkdown()}
+
+## FACTS
+${await factsStorage.toMarkdown()}
+
+## TELEMETRY_SNAPSHOT
+${auditAnalysis}
+
+## ESCALATION_PAYLOAD
+- Reason: ${reason}
+- Evidence:
+${evidence.map((item) => `  * ${item.metric}: ${item.value}`).join("\n")}
 `;
 }

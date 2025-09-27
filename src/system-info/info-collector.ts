@@ -98,6 +98,7 @@ const SYSTEM_COMMANDS = {
   },
 
   // Time
+  currentTime: { command: "date", args: ["+%Y-%m-%dT%H:%M:%S%z"], description: "Current time" },
   timezone: { command: "date", args: ["+%Z"], description: "Timezone configuration" },
 
   // Logs/kernel
@@ -440,6 +441,11 @@ export async function collectSystemInfo(): Promise<SystemInfo> {
       case "securityModules": {
         // Check SELinux/AppArmor status
         results.security.selinux = !output.includes("No security");
+        break;
+      }
+
+      case "currentTime": {
+        results.time.current = output.trim() || "unknown";
         break;
       }
 

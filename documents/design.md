@@ -60,7 +60,8 @@ graph TD
 
 ### 1.2. Main Flows
 
-- **Startup:** App launch → System Info Collector → system information → Facts Storage init → LLM system prompts.
+- **Startup:** App launch → System Info Collector → system information → Facts Storage init → LLM
+  system prompts.
 - **User Interaction:** Telegram → long polling → auth → routing → handlers →
   MainAgent.processUserQuery → responses.
 - **Self-checks:** Scheduler (~hour + jitter) → Checks Engine → AuditTask.auditMetrics →
@@ -78,7 +79,8 @@ graph TD
 - **Testing:** `Deno.test` co-located (*.test.ts)
 - **Correlation ID:** `nanoid`
 - **Processes:** `Deno.Command` (no shell/TTY)
-- **LLM:** Vercel AI SDK (`ai`) with OpenAI gpt-4o-mini; Experimental_Agent for tool orchestration
+- **LLM:** Vercel AI SDK (`ai`) with any compatible model (e.g., OpenAI gpt-4o-mini, Claude, etc.);
+  Experimental_Agent for tool orchestration
 
 > In PoC we avoid network dependencies except Telegram. No external databases/metrics/secret
 > managers.
@@ -338,7 +340,7 @@ interface Check {
   specialized instructions per task.
 - Specialized prompts: conversation context with server awareness, audit analysis, diagnostic
   reasoning.
-- Model: gpt-4o-mini via OpenAI.
+- Model: any compatible model via Vercel AI SDK (e.g., OpenAI gpt-4o-mini, Claude, etc.).
 - Response formats: natural text for conversations, structured decisions for monitoring.
 - **Text Formatting:** `markdownToTelegramMarkdownV2` converts Markdown to Telegram format.
 
@@ -364,7 +366,8 @@ interface Check {
 - **Purpose:** Persistent storage for important system facts that can be updated and referenced by
   the LLM for improved contextual awareness and knowledge management.
 - **Storage:** File-based storage in `data/facts.jsonl` using JSONL format for atomic operations.
-- **Data Structure:** Each fact contains `id`, `content`, `timestamp` fields with unique identifiers.
+- **Data Structure:** Each fact contains `id`, `content`, `timestamp` fields with unique
+  identifiers.
 - **LLM Tools:**
   - `add_fact`: Adds new facts to storage with auto-generated IDs and timestamps.
   - `update_fact`: Updates existing facts by ID with new content.
@@ -722,7 +725,8 @@ src/
 - Terminal tool: accessible via agent facade; logging; no shell; limits.
 - Logs: pretty/JSON formats; agent operations logged with correlation IDs; secrets filtered.
 - Config: ENV-based with domain objects; caching; .env auto-loading with ENV override.
-- Facts storage: persistent facts storage with LLM tools (add_fact, update_fact, delete_fact) integrated into system prompts.
+- Facts storage: persistent facts storage with LLM tools (add_fact, update_fact, delete_fact)
+  integrated into system prompts.
 
 ---
 

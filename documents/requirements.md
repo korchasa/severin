@@ -153,7 +153,8 @@
   - System prompts include server info from startup collection; conversation history maintained
     in-RAM.
   - Tools: terminal (command execution), stop (conversation termination).
-  - OpenAI via `AGENT_LLM_API_KEY` ENV with Vercel AI SDK.
+  - LLM provider via `AGENT_LLM_API_KEY` ENV with Vercel AI SDK (compatible with OpenAI, Claude,
+    etc.).
   - Runtime: Deno; LLM tasks via internal interfaces only.
 
 ### ✅ FR-10 Automatic Text Message Processing
@@ -275,7 +276,8 @@ System accepted when:
    `AGENT_TERMINAL_MAX_LLM_INPUT_LENGTH`, etc.); defaults in `createDefaultConfig()`; domain
    objects; caching prevents repeated parsing; secrets masked.
 9. ✅ LLM integration via specialized tasks: MainAgent for conversations, AuditTask/DiagnoseTask for
-   monitoring; Vercel AI SDK with OpenAI; no direct external API calls; Deno runtime.
+   monitoring; Vercel AI SDK with compatible LLM provider; no direct external API calls; Deno
+   runtime.
 10. ✅ Non-`/` text messages processed via MainAgent with conversation history; `/reset` clears
     history; short messages filtered; empty responses filtered; system info included in prompts.
 11. ✅ Logger supports pretty (default)/JSON formats; pretty with auto color detection.
