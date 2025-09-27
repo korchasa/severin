@@ -25,6 +25,5 @@ Add the following steps to the To-Do:
     - Comparison of options
     - Strategy for selecting an option
     - Optimal option selected based on the strategy. Final solution can be mixed from different options.
-6. Critique the task from step 5 and rewrite it taking the criticism into account.
-7. Add passed project checks to the Definition of Done (DoD).
-8. Add the project check as the final step of the solution.
+6. Critique the task in `./documents/whiteboard.md` and rewrite it taking the criticism into account.
+7. Add "`./run check` without errors and notices" to the Definition of Done (DoD).
