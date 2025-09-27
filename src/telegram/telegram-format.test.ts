@@ -280,3 +280,21 @@ Deno.test("markdownToTelegramMarkdownV2 - escaped backslash handling", () => {
   const out = markdownToTelegramMarkdownV2(input);
   assertEquals(out, "Path\\to\\file and _italic_"); // Backslashes get escaped
 });
+
+Deno.test("markdownToTelegramMarkdownV2 - LLM response with partial escaping", () => {
+  // Test case for the reported bug: LLM generates partially escaped text
+  const input =
+    "*Диагностика (read-only):*\nВ информации о процессоре сервера указано: Intel\\(R\\) Core\\(TM\\) i3\\-8100T CPU @ 3\\.10GHz \\(4 cores\\).\n\n\\-\\-\\-\n\n*Ответ:*\nНа сервере 4 физических ядра процессора\\.";
+  const out = markdownToTelegramMarkdownV2(input);
+  // Should preserve existing Telegram formatting and escapes, escape unescaped special chars
+  assertEquals(
+    out,
+    "*Диагностика \\(read\\-only\\):*\nВ информации о процессоре сервера указано: Intel\\(R\\) Core\\(TM\\) i3\\-8100T CPU @ 3\\.10GHz \\(4 cores\\)\\.\n\n\\-\\-\\-\n\n*Ответ:*\nНа сервере 4 физических ядра процессора\\.",
+  ); // Note: period gets escaped
+});
+
+Deno.test("markdownToTelegramMarkdownV2 - mixed escaped and unescaped parentheses", () => {
+  const input = "Text with \\(escaped\\) and (unescaped) parentheses";
+  const out = markdownToTelegramMarkdownV2(input);
+  assertEquals(out, "Text with \\(escaped\\) and \\(unescaped\\) parentheses");
+});

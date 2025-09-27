@@ -64,6 +64,12 @@ export function markdownToTelegramMarkdownV2(
 ): string {
   if (!input) return "";
 
+  // If input contains backslashes, it's likely already processed LLM output with Telegram formatting
+  // In this case, just escape unescaped special characters without converting formatting
+  if (input.includes("\\")) {
+    return escapeUnescapedSpecialChars(input);
+  }
+
   let result = "";
   let state = FSMState.NORMAL;
   let i = 0;
@@ -119,15 +125,28 @@ export function markdownToTelegramMarkdownV2(
           i++;
           continue;
         } else {
-          // Regular character - escape if needed
-          result += escapeCharIfNeeded(char);
-          if (char === "\n") {
-            isStartOfLine = true;
-          } else if (!/\s/.test(char)) {
-            isStartOfLine = false;
+          // Regular character - escape if needed, but skip already escaped characters
+          if (char === "\\" && i + 1 < input.length) {
+            // This is an escape sequence - copy it as-is
+            result += char + input[i + 1];
+            i += 2;
+            if (input[i - 1] === "\n") {
+              isStartOfLine = true;
+            } else if (!/\s/.test(input[i - 1])) {
+              isStartOfLine = false;
+            }
+            continue;
+          } else {
+            // Regular character - escape if needed
+            result += escapeCharIfNeeded(char);
+            if (char === "\n") {
+              isStartOfLine = true;
+            } else if (!/\s/.test(char)) {
+              isStartOfLine = false;
+            }
+            i++;
+            continue;
           }
-          i++;
-          continue;
         }
       }
 
@@ -201,11 +220,15 @@ export function markdownToTelegramMarkdownV2(
       }
 
       case FSMState.BOLD: {
-        if (char === "*" && nextChar === "*") {
+        if (char === "*" && prevChar !== "\\") {
           // End of bold
           result += "*";
           state = FSMState.NORMAL;
-          i += 2;
+          i++;
+          // If the next character is also *, skip it (for **bold** syntax)
+          if (i < input.length && input[i] === "*") {
+            i++;
+          }
         } else {
           // Inside bold - no escaping
           result += char;
@@ -266,10 +289,33 @@ function isItalicStart(_char: string, prevChar: string): boolean {
 /**
  * Escape special characters that need escaping in Telegram MarkdownV2
  * Characters to escape: ~ > # + - = | { } . ! (excluding _ * [ ] ` \ which are used in formatting)
+ * Does not double-escape already escaped characters
  */
 function escapeCharIfNeeded(char: string): string {
   const charsToEscape = "~>#+-=|{}!.()";
   return charsToEscape.includes(char) ? "\\" + char : char;
+}
+
+/**
+ * Escape unescaped special characters in text that already contains Telegram formatting
+ */
+function escapeUnescapedSpecialChars(text: string): string {
+  let result = "";
+  let i = 0;
+
+  while (i < text.length) {
+    if (text[i] === "\\" && i + 1 < text.length) {
+      // This is an escape sequence - copy it as-is
+      result += text[i] + text[i + 1];
+      i += 2;
+    } else {
+      // Escape special characters if not already escaped
+      result += escapeCharIfNeeded(text[i]);
+      i++;
+    }
+  }
+
+  return result;
 }
 
 /**
