@@ -94,8 +94,11 @@ export function markdownToTelegramHTML(input: string | null | undefined): string
   // 3) Восстанавливаем блокцитаты из плейсхолдеров без дополнительного форматирования
   if (bqStore.length > 0) {
     text = text.replace(/__BQ(\d+)__/g, (_m, sidx) => {
-      const idx = Number(sidx);
-      const block = bqStore[idx] ?? "";
+      const idx = parseInt(sidx, 10);
+      if (isNaN(idx) || idx < 0 || idx >= bqStore.length) {
+        return "";
+      }
+      const block = bqStore[idx];
       const lines = block.split(/\n/).map((l) => l.replace(/^>\s?/, ""));
       return `<blockquote>${escapeHtml(lines.join("\n"))}</blockquote>`;
     });
