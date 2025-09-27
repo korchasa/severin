@@ -82,14 +82,11 @@ export function markdownToTelegramHTML(input: string | null | undefined): string
   text = text.replace(/\*\*([^*]+)\*\*/g, (_m, bold) => `<b>${escapeHtml(bold)}</b>`);
 
   // Italic *text* or _text_
-  text = text.replace(
-    /(^|\W)\*([^*]+)\*(?=\W|$)/g,
-    (_m, pre, it) => `${pre}<i>${escapeHtml(it)}</i>`,
-  );
-  text = text.replace(
-    /(^|\W)_([^_]+)_(?=\W|$)/g,
-    (_m, pre, it) => `${pre}<i>${escapeHtml(it)}</i>`,
-  );
+  function replaceItalics(text: string, pattern: RegExp): string {
+    return text.replace(pattern, (_m, pre, it) => `${pre}<i>${escapeHtml(it)}</i>`);
+  }
+  text = replaceItalics(text, /(^|\W)\*([^*]+)\*(?=\W|$)/g);
+  text = replaceItalics(text, /(^|\W)_([^_]+)_(?=\W|$)/g);
 
   // 3) Восстанавливаем блокцитаты из плейсхолдеров без дополнительного форматирования
   if (bqStore.length > 0) {
