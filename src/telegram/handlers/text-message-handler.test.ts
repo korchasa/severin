@@ -16,7 +16,7 @@ const mockAgent: MainAgent = {
 const mockConfig: Config = {
   agent: {
     dataDir: "./data",
-    history: { maxMessages: 200 },
+    history: { maxSymbols: 20000 },
     terminal: { timeoutMs: 30000, maxCommandOutputSize: 200000, maxLLMInputLength: 2000 },
     llm: {
       provider: "openai",

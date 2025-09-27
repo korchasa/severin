@@ -114,12 +114,13 @@
 
 ### ✅ FR-7 In-History Conversation History
 
-- **Description:** Maintain conversation history in RAM with latest N messages for LLM context.
+- **Description:** Maintain conversation history in RAM with messages limited by total symbol count
+  for LLM context.
 - **Use case:** History updates on interaction; owner resets via `/reset` command; LLM reads
   context.
 - **Criteria:**
-  - Records: `{ type: "msg", role, content, ts }`; limit by message count
-    `AGENT_MEMORY_MAX_MESSAGES` (default 200).
+  - Records: `{ type: "msg", role, content, ts }`; limit by total symbol count
+    `AGENT_MEMORY_MAX_SYMBOLS` (default 20000).
   - Append recording; reset via command; base prompt hardcoded in LLM adapter.
 
 ### ✅ FR-8 Configuration & Secrets
@@ -131,7 +132,7 @@
   - Required: `TELEGRAM_BOT_TOKEN` (string), `TELEGRAM_OWNER_IDS` (CSV numeric), `AGENT_LLM_API_KEY`
     (string).
   - Optional: `AGENT_DATA_DIR` (default `./data`), `LOGGING_FORMAT` (default "pretty", or "json"),
-    `AGENT_MEMORY_MAX_MESSAGES` (default 200), `AGENT_TERMINAL_TIMEOUT_MS` (default 30_000),
+    `AGENT_MEMORY_MAX_SYMBOLS` (default 20000), `AGENT_TERMINAL_TIMEOUT_MS` (default 30_000),
     `AGENT_TERMINAL_MAX_COMMAND_OUTPUT_SIZE` (default 200_000),
     `AGENT_TERMINAL_MAX_LLM_INPUT_LENGTH` (default 2000), `SCHEDULER_INTERVAL_HOURS` (default 1),
     `SCHEDULER_JITTER_MINUTES` (default 5).
@@ -264,7 +265,7 @@ System accepted when:
 2. ✅ Long polling only; non-owner messages rejected safely.
 3. ✅ Periodic metrics collection with trend analysis; LLM-based anomaly detection triggers
    contextual notifications.
-4. ✅ History as in-RAM storage with message limit; reset via `/reset`; base prompt hardcoded.
+4. ✅ History as in-RAM storage with symbol limit; reset via `/reset`; base prompt hardcoded.
 5. ✅ Terminal tool (LLM-only) executes via `execFile` with timeout/output limits; safe messages on
    errors; command logging; full LLM integration via Agent facade.
 6. ✅ System information collected at startup and included in LLM system prompt for contextual

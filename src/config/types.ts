@@ -30,7 +30,7 @@ export interface MetricsConfig {
 }
 
 export interface HistoryConfig {
-  readonly maxMessages: number;
+  readonly maxSymbols: number;
 }
 
 export interface ToolConfig {
@@ -77,7 +77,7 @@ export const configSchema = z.object({
   agent: z.object({
     dataDir: z.string(),
     history: z.object({
-      maxMessages: z.number().int().positive(),
+      maxSymbols: z.number().int().positive(),
     }),
     terminal: z.object({
       timeoutMs: z.number().int().positive(),

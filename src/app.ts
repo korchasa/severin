@@ -68,7 +68,7 @@ export async function startAgent(): Promise<void> {
   // Initialize agent (encapsulates LLM, history, tools)
   const llmProvider = createOpenAI({ apiKey: config.agent.llm.apiKey });
   const llmModel = llmProvider(config.agent.llm.model);
-  const conversationHistory = new ConversationHistory(config.agent.history.maxMessages);
+  const conversationHistory = new ConversationHistory();
   const agent = createMainAgent({
     llmModel,
     terminalTool,

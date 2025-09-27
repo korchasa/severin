@@ -81,7 +81,7 @@ export function createAgent({
 
         conversationHistory.appendMessage("user", text);
         const response = await agent.generate({
-          messages: conversationHistory.getContext(),
+          messages: conversationHistory.getRecentMessages(10000), // Use reasonable limit for LLM context
         });
 
         conversationHistory.appendMessage("assistant", response.text);

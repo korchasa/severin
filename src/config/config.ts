@@ -19,8 +19,8 @@ export function createDefaultConfig(systemInfo?: string): Config {
       dataDir: env("AGENT_DATA_DIR", "./data"),
       // History management settings
       history: {
-        // Maximum number of messages to keep in conversation history
-        maxMessages: env("AGENT_MEMORY_MAX_MESSAGES", 200),
+        // Maximum total symbols to keep in conversation history
+        maxSymbols: env("AGENT_MEMORY_MAX_SYMBOLS", 20000),
       },
       // Terminal execution settings
       terminal: {

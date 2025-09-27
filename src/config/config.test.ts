@@ -264,7 +264,7 @@ Deno.test("config: createDefaultConfig uses environment variables", () => {
       AGENT_LLM_API_KEY: "test_api_key",
       AGENT_DATA_DIR: "/custom/data",
       LOGGING_FORMAT: "json",
-      AGENT_MEMORY_MAX_MESSAGES: "100",
+      AGENT_MEMORY_MAX_SYMBOLS: "10000",
       AGENT_TERMINAL_TIMEOUT_MS: "30000",
       AGENT_TERMINAL_MAX_COMMAND_OUTPUT_SIZE: "200000",
       AGENT_TERMINAL_MAX_LLM_INPUT_LENGTH: "2000",
@@ -277,7 +277,7 @@ Deno.test("config: createDefaultConfig uses environment variables", () => {
     assertEquals(config.telegram.botToken, "test_bot_token");
     assertEquals(config.telegram.ownerIds, [123, 456]);
     assertEquals(config.logging.format, "json");
-    assertEquals(config.agent.history.maxMessages, 100);
+    assertEquals(config.agent.history.maxSymbols, 10000);
     assertEquals(config.agent.terminal.timeoutMs, 30000);
     assertEquals(config.agent.terminal.maxCommandOutputSize, 200000);
     assertEquals(config.agent.terminal.maxLLMInputLength, 2000);
