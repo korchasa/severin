@@ -7,7 +7,7 @@ import * as z from "zod";
 import { tool } from "ai";
 import { sh } from "../../utils/sh.ts";
 
-const TerminalParams = z.object({
+export const TerminalParams = z.object({
   command: z.string().min(1, "command is required"),
   cwd: z.string().optional(),
   reason: z.string().min(1, "reason is required"),
@@ -52,15 +52,7 @@ export async function executeTerminal(
   timeoutMs: number,
   maxCommandOutputSize: number,
   maxLLMInputLength: number,
-): Promise<{
-  exitCode: number;
-  stdout: string;
-  stdoutTruncated: boolean;
-  stderr: string;
-  stderrTruncated: boolean;
-  durationMs: number;
-  command: string;
-}> {
+): Promise<TerminalResponse> {
   // Stage 1: Preparation
   const validated = validateTerminal(request);
   const { controller, cleanup } = createTimeoutController(timeoutMs);

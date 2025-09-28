@@ -1,7 +1,7 @@
 import { assertEquals } from "@std/assert";
-import { calcPrice, sumUsages } from "./cost.ts";
+import { calcAmount, sumUsages } from "./cost.ts";
 
-Deno.test("calcPrice calculates cost for basic usage", () => {
+Deno.test("calcAmount calculates cost for basic usage", () => {
   const tokenPrices = {
     inputTokens: 0.15,
     outputTokens: 0.60,
@@ -18,14 +18,14 @@ Deno.test("calcPrice calculates cost for basic usage", () => {
     cachedInputTokens: undefined,
   };
 
-  const cost = calcPrice(usage, tokenPrices);
+  const cost = calcAmount(usage, tokenPrices);
 
   // Expected: (1000 / 1_000_000) * 0.15 + (200 / 1_000_000) * 0.60
   // = 0.00015 + 0.00012 = 0.00027
   assertEquals(cost, 0.00027);
 });
 
-Deno.test("calcPrice calculates cost with all token types", () => {
+Deno.test("calcAmount calculates cost with all token types", () => {
   const tokenPrices = {
     inputTokens: 0.15,
     outputTokens: 0.60,
@@ -42,7 +42,7 @@ Deno.test("calcPrice calculates cost with all token types", () => {
     cachedInputTokens: 500,
   };
 
-  const cost = calcPrice(usage, tokenPrices);
+  const cost = calcAmount(usage, tokenPrices);
 
   // Expected: (1000 / 1_000_000) * 0.15 + (200 / 1_000_000) * 0.60 + (1200 / 1_000_000) * 0.30 +
   //           (100 / 1_000_000) * 0.50 + (500 / 1_000_000) * 0.10
@@ -50,7 +50,7 @@ Deno.test("calcPrice calculates cost with all token types", () => {
   assertEquals(cost, 0.00073);
 });
 
-Deno.test("calcPrice ignores undefined prices and tokens", () => {
+Deno.test("calcAmount ignores undefined prices and tokens", () => {
   const tokenPrices = {
     inputTokens: 0.15,
     outputTokens: 0.60,
@@ -67,14 +67,14 @@ Deno.test("calcPrice ignores undefined prices and tokens", () => {
     cachedInputTokens: undefined,
   };
 
-  const cost = calcPrice(usage, tokenPrices);
+  const cost = calcAmount(usage, tokenPrices);
 
   // Expected: only input and output tokens
   // (1000 / 1_000_000) * 0.15 + (200 / 1_000_000) * 0.60 = 0.00015 + 0.00012 = 0.00027
   assertEquals(cost, 0.00027);
 });
 
-Deno.test("calcPrice returns 0 for empty usage", () => {
+Deno.test("calcAmount returns 0 for empty usage", () => {
   const tokenPrices = {
     inputTokens: 0.15,
     outputTokens: 0.60,
@@ -91,7 +91,7 @@ Deno.test("calcPrice returns 0 for empty usage", () => {
     cachedInputTokens: undefined,
   };
 
-  const cost = calcPrice(usage, tokenPrices);
+  const cost = calcAmount(usage, tokenPrices);
 
   assertEquals(cost, 0);
 });

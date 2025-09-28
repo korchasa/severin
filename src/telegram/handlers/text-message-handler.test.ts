@@ -25,7 +25,6 @@ const mockConfig: Config = {
       maxSteps: 30,
       maxStdoutLength: 2000,
       basePrompt: "test",
-      additionalPrompt: "",
       systemInfo: undefined,
       tokenPrices: {
         inputTokens: 0.15,

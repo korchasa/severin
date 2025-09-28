@@ -75,6 +75,7 @@ export async function startAgent(): Promise<void> {
     conversationHistory,
     systemInfo,
     factsStorage,
+    dataDir: config.agent.dataDir,
   });
   const auditTask = createAuditTask({ llmModel, systemInfo, factsStorage });
   const diagnoseTask = createDiagnoseTask({ llmModel, terminalTool, systemInfo, factsStorage });
@@ -109,5 +110,5 @@ export async function startAgent(): Promise<void> {
   log({ mod: "boot", event: "started", polling: true });
 
   // Start initial health check
-  healthScheduler.triggerChecks();
+  // healthScheduler.triggerChecks();
 }

@@ -9,7 +9,7 @@ import type { TokenPrices } from "../config/types.ts";
  * @param tokenPrices - Token prices configuration
  * @returns Total cost in USD (number)
  */
-export function calcPrice(usage: LanguageModelV2Usage, tokenPrices: TokenPrices): number {
+export function calcAmount(usage: LanguageModelV2Usage, tokenPrices: TokenPrices): number {
   let totalCost = 0;
 
   // Calculate cost for input tokens (per 1M tokens)

@@ -235,22 +235,37 @@
   - Optional token types (reasoning, cached) with configurable pricing.
   - Type-safe implementation with full TypeScript support.
   - Usage tracking added to AuditTask and DiagnoseTask for cost monitoring.
+  - Function name: `calcAmount` for cost calculation.
 
-### ❌ FR-13 Additional System Prompt Instructions
+### ✅ FR-17 Real-time Tool Call Notifications
 
-- **Description:** Support for additional custom instructions in LLM system prompt via environment
-  variable for flexible agent behavior customization.
-- **Use case:** Owner can add specific instructions, security rules, or behavioral guidelines
-  without modifying source code.
+- **Description:** Agent provides real-time notifications to Telegram users about tool calls being
+  executed during LLM processing for enhanced transparency and user experience.
+- **Use case:** Users receive immediate feedback when LLM executes terminal commands or manages
+  facts, providing visibility into agent actions and building trust.
 - **Criteria:**
-  - `AGENT_LLM_ADDITIONAL_PROMPT` ENV: optional string with custom instructions.
-  - Additional instructions appended to system prompt in dedicated "## Additional Instructions"
-    section.
-  - Base system prompt instructions take precedence over additional ones.
-  - Empty/unset variable results in no additional section.
-  - Instructions validated at startup; no harmful content injection prevention beyond basic string
-    validation.
-  - Integration maintains existing system prompt structure and formatting.
+  - Tool call callbacks: `onToolCallRequested` and `onToolCallFinished` for tracking tool execution.
+  - Real-time Telegram messages for terminal commands with formatted command and reason.
+  - Real-time notifications for facts management operations (add, update, delete).
+  - Formatted output using Telegram HTML markup for better readability.
+  - Non-blocking notifications that don't interfere with LLM processing.
+  - Support for all tool types: terminal, add_fact, update_fact, delete_fact.
+  - Integration with existing Telegram message formatting system.
+
+### ✅ FR-18 Agent Response Debugging and Analysis
+
+- **Description:** Agent saves detailed response information to files for debugging, analysis, and
+  monitoring of LLM interactions.
+- **Use case:** Developers and operators can analyze agent behavior, debug issues, and monitor LLM
+  performance through structured response dumps.
+- **Criteria:**
+  - Response dumps saved to `data/main-agent-last-response.yaml` after each interaction.
+  - Structured data includes request parameters, message chain, finish reasons, tool calls, and
+    usage.
+  - YAML format for human-readable analysis and debugging.
+  - Integration with logging system for response tracking.
+  - Support for both Jest test environment and Deno runtime.
+  - Fail-fast approach: errors in serialization are thrown rather than silently ignored.
 
 ## 4. Non-Functional Requirements
 
@@ -302,10 +317,12 @@ System accepted when:
 11. ✅ Logger supports pretty (default)/JSON formats; pretty with auto color detection.
 12. ✅ Specialized agent architecture: MainAgent for user queries, AuditTask for metrics analysis,
     DiagnoseTask for diagnosis; clean separation with appropriate tools per context.
-13. ❌ Additional system prompt instructions loaded from `AGENT_LLM_ADDITIONAL_PROMPT` env var and
-    integrated into LLM system prompt in dedicated section; empty when unset.
-14. ✅ Persistent facts storage with LLM tools: facts stored in `data/facts.jsonl`, managed via
+13. ✅ Persistent facts storage with LLM tools: facts stored in `data/facts.jsonl`, managed via
     `add_fact`, `update_fact`, `delete_fact`, `get_all_facts` tools, integrated into system prompts
     using structured markdown formatting.
-15. ✅ LLM cost calculation: token pricing configured via environment variables, cost tracking
+14. ✅ LLM cost calculation: token pricing configured via environment variables, cost tracking
     integrated into AuditTask and DiagnoseTask, usage aggregated across operations.
+15. ✅ Real-time tool call notifications: users receive immediate Telegram notifications when LLM
+    executes terminal commands or manages facts, with formatted output and non-blocking delivery.
+16. ✅ Agent response debugging: detailed response dumps saved to YAML files for analysis and
+    monitoring, with fail-fast serialization and support for both test and production environments.

@@ -84,9 +84,10 @@ src/
 │   ├── middlewares.ts       # Telegram middleware and logging
 │   ├── telegram-format.ts   # Telegram HTML formatting utilities
 │   ├── telegram-format.test.ts
+│   ├── utils.ts             # Telegram utility functions for response analysis
 │   └── handlers/
 │       ├── command-reset-handler.ts    # History reset command handler
-│       ├── text-message-handler.ts     # LLM-powered text message processing
+│       ├── text-message-handler.ts     # LLM-powered text message processing with real-time notifications
 │       └── text-message-handler.test.ts
 └── utils/
     ├── logger.ts            # Structured logging with pretty/JSON formats
@@ -134,3 +135,10 @@ tests/                       # Integration and end-to-end tests (currently empty
 - Mock external dependencies
 - Agent facade supports dependency injection for testing
 - Test doubles for LLM client, conversation history, and prompt renderer
+
+### Real-time Features
+
+- Tool call callbacks for immediate user feedback
+- Response debugging with YAML dumps
+- Telegram notifications during LLM execution
+- Non-blocking notification system

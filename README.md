@@ -44,7 +44,6 @@ Set environment variables:
   (default: 20000)
 - `AGENT_TOOLS_TIMEOUT_MS` - timeout for tool execution in milliseconds (default: 30000)
 - `AGENT_TOOLS_MAX_OUTPUT_BYTES` - maximum output size for tools in bytes (default: 200000)
-- `AGENT_LLM_ADDITIONAL_PROMPT` - additional custom instructions for LLM system prompt
 - `RATE_LIMIT_REQUEST_INTERVAL_MS` - minimum interval between user requests in milliseconds
   (default: 5000)
 - `SCHEDULER_INTERVAL_HOURS` - hours between health checks (default: 1)

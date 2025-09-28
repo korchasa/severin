@@ -46,8 +46,6 @@ export function createDefaultConfig(systemInfo?: string): Config {
         // Base prompt template
         basePrompt:
           "You are a home server agent. Your goal is to help users with server management tasks with the tools provided. You must use clear and concise language.",
-        // Additional custom instructions
-        additionalPrompt: env("AGENT_LLM_ADDITIONAL_PROMPT", "").trim(),
         // System information for LLM context
         systemInfo,
         // Token prices in USD per 1M tokens

@@ -102,8 +102,6 @@ graph TD
   - `AGENT_TERMINAL_TIMEOUT_MS: number` (default 30_000)
   - `AGENT_TERMINAL_MAX_COMMAND_OUTPUT_SIZE: number` (default 200_000)
   - `AGENT_TERMINAL_MAX_LLM_INPUT_LENGTH: number` (default 2000)
-  - `AGENT_LLM_ADDITIONAL_PROMPT: string` (optional) - additional custom instructions for LLM system
-    prompt
   - `AGENT_LLM_PRICE_INPUT_TOKENS: number` (default 0.15) - price per 1M input tokens in USD
   - `AGENT_LLM_PRICE_OUTPUT_TOKENS: number` (default 0.60) - price per 1M output tokens in USD
   - `AGENT_LLM_PRICE_TOTAL_TOKENS: number` (optional) - price per 1M total tokens in USD
@@ -361,16 +359,28 @@ interface Check {
 
 - **Terminal Tool:**
   - Interface: `{ command: string, cwd?: string, reason: string }` →
-    `{ exitCode, stdout, stdoutTruncated, stderr, stderrTruncated, durationMs }`.
+    `{ exitCode, stdout, stdoutTruncated, stderr, stderrTruncated, durationMs, command }`.
   - Execution: `Deno.Command("sh", ["-c", validated.cmd])` with shell capabilities, timeout control.
   - Capabilities: pipes, redirection, variables, conditionals, globbing via `sh -c`.
   - Safety: timeout (30s default), output limits, command validation, audit logging.
   - Response includes separate truncation flags for stdout and stderr.
+  - Real-time notifications: formatted command and reason sent to Telegram during execution.
+
+- **Facts Management Tools:**
+  - `add_fact`: `{ content: string }` → fact creation with auto-generated ID and timestamp.
+  - `update_fact`: `{ id: string, content: string }` → fact content update by ID.
+  - `delete_fact`: `{ id: string }` → fact removal by ID.
+  - Real-time notifications: formatted operation details sent to Telegram during execution.
 
 - **Stop Tool:**
   - Interface: no parameters; terminates conversation when appropriate.
   - Purpose: Natural conversation ending via LLM decision.
   - Integration: Available in MainAgent for user interactions.
+
+- **Tool Call Interception:**
+  - Callback system: `onToolCallRequested` and `onToolCallFinished` for real-time tracking.
+  - Tool execution monitoring with formatted Telegram notifications.
+  - Non-blocking notifications that don't interfere with LLM processing.
 
 - **Registry:** Tools registered via Vercel AI SDK; accessible only through LLM agents.
 
@@ -444,9 +454,43 @@ interface Check {
   - `cachedInputTokens`: Cached input tokens at reduced pricing (optional)
 - **Pricing Model:** USD per 1 million tokens; configurable via environment variables.
 - **Calculation Function:**
-  `calcPrice(usage: LanguageModelV2Usage, tokenPrices: TokenPrices): number`
+  `calcAmount(usage: LanguageModelV2Usage, tokenPrices: TokenPrices): number`
 - **Usage:** Integrated into agent tasks for cost tracking and monitoring.
 - **Fallback:** No external dependencies; pure calculation based on configured prices.
+
+### 4.18. Real-time Tool Call Notifications
+
+- **Purpose:** Provide immediate user feedback during LLM tool execution for enhanced transparency
+  and user experience.
+- **Implementation:**
+  - Tool call interception via callback system in MainAgent.
+  - Real-time Telegram messages sent during tool execution.
+  - Formatted output using Telegram HTML markup for readability.
+- **Supported Notifications:**
+  - **Terminal Commands:** Formatted command with reason in code blocks.
+  - **Facts Management:** Operation details (add, update, delete) in blockquotes.
+- **Technical Details:**
+  - Non-blocking notifications that don't interfere with LLM processing.
+  - Integration with existing Telegram message formatting system.
+  - Callback functions: `onToolCallRequested` and `onToolCallFinished`.
+  - Support for all tool types: terminal, add_fact, update_fact, delete_fact.
+
+### 4.19. Agent Response Debugging and Analysis
+
+- **Purpose:** Save detailed agent response information for debugging, analysis, and monitoring.
+- **Implementation:**
+  - Response dumps saved to `data/main-agent-last-response.yaml` after each interaction.
+  - Structured data extraction via `shortAgentResponseDump` utility function.
+  - YAML serialization with fail-fast error handling.
+- **Data Captured:**
+  - Request parameters: model, temperature, tool choice.
+  - Message chain: role, content, type, name, arguments, output.
+  - Execution details: finish reason, final response, usage statistics.
+- **Technical Details:**
+  - Support for both Jest test environment and Deno runtime.
+  - Integration with logging system for response tracking.
+  - Fail-fast approach: serialization errors are thrown rather than ignored.
+  - Human-readable YAML format for analysis and debugging.
 
 ---
 
@@ -517,7 +561,7 @@ sequenceDiagram
   AGENT-->>HND: response
 ```
 
-### 5.4. Text Message Processing
+### 5.4. Text Message Processing with Real-time Notifications
 
 ```mermaid
 sequenceDiagram
@@ -526,12 +570,21 @@ sequenceDiagram
   participant RT as Router
   participant TXT as Text Handler
   participant AGENT as Agent Facade
+  participant LLM as LLM Model
+  participant TOOL as Tool
 
   TG->>RT: text message
   RT->>TXT: handleText(ctx)
   TXT->>TXT: text processing
   TXT->>TXT: length filter
-  TXT->>AGENT: processUserQuery(text)
+  TXT->>AGENT: processUserQuery(text, callbacks)
+  AGENT->>LLM: generateText(messages)
+  LLM->>TOOL: tool call
+  AGENT->>TXT: onToolCallRequested
+  TXT->>TG: real-time notification
+  TOOL-->>LLM: tool result
+  AGENT->>TXT: onToolCallFinished
+  LLM-->>AGENT: final response
   AGENT-->>TXT: response
   TXT->>TG: reply(response)
 ```
@@ -746,9 +799,10 @@ src/
     middlewares.ts       # Telegram middleware and logging
     telegram-format.ts   # Telegram HTML formatting utilities
     telegram-format.test.ts
+    utils.ts             # Telegram utility functions for response analysis
     handlers/
       command-reset-handler.ts    # History reset command handler
-      text-message-handler.ts     # LLM-powered text message processing
+      text-message-handler.ts     # LLM-powered text message processing with real-time notifications
       text-message-handler.test.ts
   utils/
     logger.ts            # Structured logging with pretty/JSON formats
@@ -773,6 +827,8 @@ src/
 - Config: ENV-based with domain objects; caching; .env auto-loading with ENV override.
 - Facts storage: persistent facts storage with LLM tools (add_fact, update_fact, delete_fact)
   integrated into system prompts.
+- Real-time notifications: tool call callbacks provide immediate user feedback during LLM execution.
+- Response debugging: agent response dumps saved to YAML files for analysis and monitoring.
 
 ---
 

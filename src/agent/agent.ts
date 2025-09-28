@@ -9,12 +9,25 @@
 import { ConversationHistory } from "./history/service.ts";
 import { log } from "../utils/logger.ts";
 import type { LanguageModelV2 } from "@ai-sdk/provider";
-import { Tool } from "ai";
+import { Tool, tool, ToolCallOptions } from "ai";
 import { Experimental_Agent as Agent } from "ai";
 import { stepCountIs } from "ai";
 import { SystemInfo } from "../system-info/system-info.ts";
-import type { FactsStorage } from "../core/types.ts";
+import type { FactsStorage, TerminalResponse } from "../core/types.ts";
 import { createAddFactTool, createDeleteFactTool, createUpdateFactTool } from "./tools/facts.ts";
+import z from "zod";
+import { TerminalParams } from "./tools/terminal.ts";
+import { AddFactParams, DeleteFactParams, UpdateFactParams } from "./tools/facts.ts";
+import { shortAgentResponseDump } from "../telegram/utils.ts";
+import { yamlDump } from "../utils/dump.ts";
+
+export type ToolName = "terminal" | "add_fact" | "update_fact" | "delete_fact";
+export type ToolInput =
+  | z.infer<typeof TerminalParams>
+  | z.infer<typeof AddFactParams>
+  | z.infer<typeof UpdateFactParams>
+  | z.infer<typeof DeleteFactParams>;
+export type ToolOutput = TerminalResponse | unknown;
 
 /**
  * Public interface for the Agent facade.
@@ -31,6 +44,8 @@ export interface MainAgent {
   processUserQuery(input: {
     text: string;
     correlationId?: string;
+    onToolCallRequested?: (toolName: ToolName, input: ToolInput) => void;
+    onToolCallFinished?: (toolName: ToolName, input: ToolInput, output: ToolOutput) => void;
   }): Promise<{ text: string }>;
 }
 
@@ -40,18 +55,32 @@ export function createAgent({
   conversationHistory,
   systemInfo,
   factsStorage,
+  dataDir,
 }: {
   llmModel: LanguageModelV2;
   terminalTool: Tool;
   conversationHistory: ConversationHistory;
   systemInfo: SystemInfo;
   factsStorage: FactsStorage;
+  dataDir: string;
 }): MainAgent {
   // Return agent implementation
   return {
-    async processUserQuery(input: { text: string; correlationId?: string }) {
-      const { text, correlationId } = input;
-
+    async processUserQuery({
+      text,
+      correlationId,
+      onToolCallRequested,
+      onToolCallFinished,
+    }: {
+      text: string;
+      correlationId: string;
+      onToolCallRequested?: (toolName: ToolName, input: ToolInput) => void;
+      onToolCallFinished?: (
+        toolName: ToolName,
+        input: ToolInput,
+        output: ToolOutput,
+      ) => void;
+    }) {
       // Validate input
       if (!text || text.trim().length < 2) {
         throw new Error("Query text must be at least 2 characters long");
@@ -64,24 +93,70 @@ export function createAgent({
         textLength: text.length,
       });
 
+      const interceptToolCalls = function (name: ToolName, sourceTool: Tool) {
+        return tool({
+          description: sourceTool.description,
+          inputSchema: sourceTool.inputSchema,
+          execute: async (
+            input: ToolInput,
+            options: ToolCallOptions,
+          ) => {
+            onToolCallRequested?.(name, input);
+            const res = await sourceTool.execute?.(input, options);
+            onToolCallFinished?.(name, input, res);
+            return res;
+          },
+        });
+      };
+
       try {
         const agent = new Agent({
           model: llmModel,
-          system: await generateSystemPrompt({ serverInfo: systemInfo, factsStorage }),
+          system: await generateSystemPrompt({
+            serverInfo: systemInfo,
+            factsStorage,
+          }),
           tools: {
-            terminal: terminalTool,
-            add_fact: createAddFactTool(factsStorage),
-            update_fact: createUpdateFactTool(factsStorage),
-            delete_fact: createDeleteFactTool(factsStorage),
+            terminal: interceptToolCalls("terminal", terminalTool),
+            add_fact: interceptToolCalls("add_fact", createAddFactTool(factsStorage)),
+            update_fact: interceptToolCalls("update_fact", createUpdateFactTool(factsStorage)),
+            delete_fact: interceptToolCalls("delete_fact", createDeleteFactTool(factsStorage)),
           },
-          stopWhen: [
-            stepCountIs(30),
-          ],
+          stopWhen: [stepCountIs(30)],
+          // prepareStep: async ({ steps, stepNumber, model, messages }) => {
+          //   log({
+          //     mod: "agent",
+          //     event: "prepare_step",
+          //     text,
+          //     model,
+          //     stepsCount: steps.length,
+          //     messagesCount: messages.length,
+          //   });
+          //   return {};
+          // },
+          // onStepFinish: async ({ text, toolCalls, toolResults, finishReason, usage }) => {
+          //   log({
+          //     mod: "agent",
+          //     event: "step_finish",
+          //     text,
+          //     finishReason: yamlDump(finishReason),
+          //     toolCalls: yamlDump(toolCalls.map((toolCall) => toolCall.toolName)),
+          //     toolResults: yamlDump(toolResults.map((toolResult) => toolResult.toolName)),
+          //   });
+          // },
         });
 
         conversationHistory.appendMessage("user", text);
         const response = await agent.generate({
           messages: conversationHistory.getRecentMessages(10000), // Use reasonable limit for LLM context
+        });
+
+        const dump = yamlDump(shortAgentResponseDump(response));
+        Deno.writeTextFileSync(`${dataDir}/main-agent-last-response.yaml`, dump);
+        log({
+          mod: "agent",
+          event: "dump",
+          response: dump,
         });
 
         conversationHistory.appendMessage("assistant", response.text);
@@ -107,9 +182,13 @@ export function createAgent({
   };
 }
 
-async function generateSystemPrompt(
-  { serverInfo, factsStorage }: { serverInfo: SystemInfo; factsStorage: FactsStorage },
-) {
+async function generateSystemPrompt({
+  serverInfo,
+  factsStorage,
+}: {
+  serverInfo: SystemInfo;
+  factsStorage: FactsStorage;
+}) {
   return `# System Prompt for Server Agent
 
 ## Role & Mission

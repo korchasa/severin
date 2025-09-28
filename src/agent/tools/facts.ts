@@ -7,15 +7,15 @@ import type { FactsStorage } from "../../core/types.ts";
 import * as z from "zod";
 import { tool } from "ai";
 
-const AddFactParams = z.object({
+export const AddFactParams = z.object({
   content: z.string().min(1, "content is required").max(1000, "content too long"),
 });
 
-const DeleteFactParams = z.object({
+export const DeleteFactParams = z.object({
   id: z.string().min(1, "id is required"),
 });
 
-const UpdateFactParams = z.object({
+export const UpdateFactParams = z.object({
   id: z.string().min(1, "id is required"),
   content: z.string().min(1, "content is required").max(1000, "content too long"),
 });

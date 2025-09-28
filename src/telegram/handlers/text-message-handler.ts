@@ -12,6 +12,9 @@ import type { Config } from "../../config/types.ts";
 import type { MainAgent } from "../../agent/agent.ts";
 import { log } from "../../utils/logger.ts";
 import { markdownToTelegramHTML } from "../telegram-format.ts";
+import { TerminalParams } from "../../agent/tools/terminal.ts";
+import { z } from "zod";
+import { AddFactParams, DeleteFactParams, UpdateFactParams } from "../../agent/tools/facts.ts";
 
 /**
  * Creates a text message handler that processes any text message as an LLM query
@@ -55,6 +58,57 @@ export function createTextMessageHandler(
       const { text: response } = await mainAgent.processUserQuery({
         text,
         correlationId: ctx.update.update_id?.toString(),
+        onToolCallRequested: async (toolName, input) => {
+          switch (toolName) {
+            case "terminal": {
+              const params = input as z.infer<typeof TerminalParams>;
+              const reason = params.reason.replace(/\n/g, "\n# ");
+              await ctx.reply(
+                markdownToTelegramHTML(
+                  `<pre><code class="language-bash"># ${reason}\n&gt; ${params.command}</code></pre>`,
+                ),
+                { parse_mode: "HTML" },
+              );
+              break;
+            }
+            case "add_fact": {
+              const params = input as z.infer<typeof AddFactParams>;
+              await ctx.reply(
+                markdownToTelegramHTML(
+                  `<blockquote>Add fact "${params.content}"</blockquote>`,
+                ),
+                { parse_mode: "HTML" },
+              );
+              break;
+            }
+            case "update_fact": {
+              const params = input as z.infer<typeof UpdateFactParams>;
+              await ctx.reply(
+                markdownToTelegramHTML(
+                  `<blockquote>Update fact "${params.content}"</blockquote>`,
+                ),
+                { parse_mode: "HTML" },
+              );
+              break;
+            }
+            case "delete_fact": {
+              const params = input as z.infer<typeof DeleteFactParams>;
+              await ctx.reply(
+                markdownToTelegramHTML(
+                  `<blockquote>Delete fact "${params.id}"</blockquote>`,
+                ),
+                { parse_mode: "HTML" },
+              );
+              break;
+            }
+            default: {
+              throw new Error(`Unexpected tool: ${toolName}`);
+            }
+          }
+        },
+        onToolCallFinished: (_toolName, _input, _output) => {
+          return;
+        },
       });
 
       // Don't send empty responses to avoid Telegram API errors
