@@ -98,8 +98,8 @@ function inspectObject(value: unknown, _depth = 6): string {
 export function yamlDump(value: unknown): string {
   // Detect Jest test environment for compatibility
   // In Deno, we check for JEST_WORKER_ID in environment variables
-  const isJest = typeof globalThis.Deno !== "undefined" &&
-    !!globalThis.Deno.env.get("JEST_WORKER_ID");
+  const isJest = typeof Deno !== "undefined" &&
+    !!Deno.env.get("JEST_WORKER_ID");
   if (isJest) {
     // Use object inspection in test environment
     return inspectObject(value, 6);
