@@ -24,7 +24,7 @@ export function toPre(text: string): string {
 }
 
 /**
- * Форматирует как многострочный блок кода с языком подсветки (класс language-<lang> на <code>).
+ * Formats as a multiline code block with language highlighting (class language-<lang> on <code>).
  */
 export function toPreCode(
   { code, language }: Readonly<{ code: string; language?: string }>,
