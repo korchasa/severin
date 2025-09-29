@@ -5,7 +5,7 @@
 import { z } from "zod";
 import type { CommandDef } from "../../core/types.ts";
 import type { ConversationHistory } from "../../agent/history/service.ts";
-import { logUpdate } from "../../utils/logger.ts";
+import { log } from "../../utils/logger.ts";
 
 export function createHistoryResetCommand(
   history: ConversationHistory,
@@ -23,7 +23,10 @@ export function createHistoryResetCommand(
     handler: async (ctx, _args) => {
       history.reset();
       await ctx.reply("Conversation history cleared.");
-      logUpdate(ctx, "conversation_reset");
+      log({
+        "mod": "tg",
+        "event": "conversation_reset",
+      });
     },
   };
 }

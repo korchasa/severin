@@ -1,9 +1,9 @@
 /**
  * @fileoverview Utility for YAML serialization with Deno compatibility
  *
- * This module provides YAML dumping functionality with fallback to JSON inspection.
+ * This module provides YAML dumping functionality for Deno runtime.
  * It handles both Jest test environment and Deno runtime, converting Node.js util.inspect
- * calls to Deno-compatible alternatives.
+ * calls to Deno-compatible alternatives. Fails fast on serialization errors.
  *
  * @author Server Agent Team
  * @version 1.0.0
@@ -61,57 +61,61 @@ function convertSimpleArraysToFlowStyle(value: unknown): unknown {
  * Simple object inspection function for Deno (replaces util.inspect)
  *
  * Provides a Deno-compatible alternative to Node.js util.inspect for object serialization.
- * Uses JSON.stringify with pretty formatting as the primary method, falling back to
- * String conversion for non-serializable values.
+ * Uses JSON.stringify with pretty formatting as the primary method.
  *
  * @param value - The value to inspect
  * @param depth - Maximum depth for inspection (currently unused, kept for compatibility)
  * @returns String representation of the value
+ * @throws Error if value cannot be serialized to JSON
  */
 function inspectObject(value: unknown, _depth = 6): string {
-  try {
-    // Use JSON.stringify for pretty-printed output
-    return JSON.stringify(value, null, 2);
-  } catch {
-    // Fallback to string conversion for non-serializable values
-    return String(value);
-  }
+  // Use JSON.stringify for pretty-printed output
+  // Will throw if value cannot be serialized
+  return JSON.stringify(value, null, 2);
 }
 
 /**
  * Serializes a value to YAML format with Deno compatibility
  *
  * Main export function that converts any value to YAML string representation.
- * Handles both Jest test environment and Deno runtime, with intelligent fallback
- * to JSON inspection when YAML serialization fails.
+ * Handles both Jest test environment and Deno runtime.
  *
  * @param value - The value to serialize to YAML
  * @returns YAML string representation
+ * @throws Error if value cannot be serialized to YAML or JSON (in Jest environment)
+ *
+ * @throws {Error} "Tag not resolved for Function value" when:
+ *   - Object contains functions (methods, arrow functions, regular functions)
+ *   - Array contains functions
+ *   - Nested objects contain functions
+ *   - Object contains Symbol values
+ *
+ * @throws {Error} Other serialization errors for unsupported types like:
+ *   - BigInt (converted to number, may lose precision)
+ *   - Complex objects with methods (Date, RegExp, Map, Set, Error, Promise, etc.)
+ *     are serialized as empty objects {}
  */
 export function yamlDump(value: unknown): string {
   // Detect Jest test environment for compatibility
   // In Deno, we check for JEST_WORKER_ID in environment variables
-  const isJest = typeof Deno !== "undefined" && !!Deno.env.get("JEST_WORKER_ID");
+  const isJest = typeof Deno !== "undefined" &&
+    !!Deno.env.get("JEST_WORKER_ID");
   if (isJest) {
     // Use object inspection in test environment
     return inspectObject(value, 6);
   }
 
-  try {
-    // Convert simple arrays to flow style for more compact output
-    const processedValue = convertSimpleArraysToFlowStyle(value);
+  // Convert simple arrays to flow style for more compact output
+  const processedValue = convertSimpleArraysToFlowStyle(value);
 
-    return stringify(processedValue, {
-      indent: 2,
-      // Do not fold long lines automatically to avoid unexpected newlines
-      lineWidth: 0,
-      minContentWidth: 20,
-      // Use PLAIN by default so that multi-line strings are emitted as block scalars (|)
-      // and single-line strings are not needlessly quoted
-      defaultStringType: "PLAIN",
-    });
-  } catch {
-    // Fall back to object inspection if YAML serialization fails
-    return inspectObject(value, 6);
-  }
+  // Will throw if YAML serialization fails
+  return stringify(processedValue, {
+    indent: 2,
+    // Do not fold long lines automatically to avoid unexpected newlines
+    lineWidth: 0,
+    minContentWidth: 20,
+    // Use PLAIN by default so that multi-line strings are emitted as block scalars (|)
+    // and single-line strings are not needlessly quoted
+    defaultStringType: "PLAIN",
+  });
 }

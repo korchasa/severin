@@ -3,8 +3,6 @@
  * Provides human-readable development logs and machine-readable production logs
  */
 
-import type { Context } from "grammy";
-
 // Global logger configuration - initialized once at startup
 const loggerConfig = { format: "pretty" as "pretty" | "json" };
 
@@ -93,58 +91,4 @@ export function log(fields: Record<string, unknown>): void {
 export function genCorrelationId(): string {
   const rnd = Math.random().toString(36).slice(2, 10);
   return `${Date.now().toString(36)}-${rnd}`;
-}
-
-/**
- * Logs Telegram update processing with correlation tracking
- */
-export function logUpdate(
-  _ctx: Context,
-  event: string,
-  extra: Record<string, unknown> = {},
-): void {
-  log({
-    mod: "tg",
-    event,
-    ...extra,
-  });
-}
-
-/**
- * Logs outgoing Telegram messages with correlation tracking
- */
-export function logOutgoingMessage(
-  _ctx: Context,
-  method: string,
-  _chatId: number | string,
-  text: string,
-  extra: Record<string, unknown> = {},
-): void {
-  log({
-    mod: "tg",
-    event: "message_out",
-    method,
-    message_text: text,
-    ...extra,
-  });
-}
-
-/**
- * Logs outgoing Telegram messages without context (for scheduler/background tasks)
- */
-export function logOutgoingMessageNoContext(
-  method: string,
-  chatId: number | string,
-  text: string,
-  extra: Record<string, unknown> = {},
-): void {
-  log({
-    mod: "tg",
-    event: "message_out",
-    method,
-    chat_id: chatId,
-    message_text: text,
-    source: "scheduler",
-    ...extra,
-  });
 }

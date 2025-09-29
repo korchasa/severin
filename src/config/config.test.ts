@@ -4,7 +4,7 @@
 
 import { assertEquals, assertThrows } from "@std/assert";
 import { createDefaultConfig } from "./config.ts";
-import { env, toJSONWithoutPII } from "./utils.ts";
+import { env, envOptional, toJSONWithoutPII } from "./utils.ts";
 import { cachedConfig, clearConfigCache, loadConfig } from "./load.ts";
 
 // Mock environment for testing
@@ -341,110 +341,132 @@ Deno.test("config: createDefaultConfig throws on missing required variables", ()
   }
 });
 
-Deno.test("config: additional prompt is included in system prompt when set", () => {
+// Tests for envOptional function
+Deno.test("config: envOptional returns undefined when variable is not set", () => {
   try {
-    testEnvVars({
-      TELEGRAM_BOT_TOKEN: "test_token",
-      TELEGRAM_OWNER_IDS: "123456789",
-      AGENT_LLM_API_KEY: "test_key",
-      AGENT_LLM_ADDITIONAL_PROMPT: "Always be polite and helpful.",
-    });
+    clearTestEnvVars();
 
-    const config = createDefaultConfig();
+    const result = envOptional("NON_EXISTENT_VAR");
+    assertEquals(result, undefined);
+  } finally {
+    clearTestEnvVars();
+  }
+});
 
-    // Check that additional instructions are stored in config
-    assertEquals(
-      config.agent.llm.additionalPrompt.includes("Always be polite and helpful."),
-      true,
+Deno.test("config: envOptional returns default when variable is not set", () => {
+  try {
+    clearTestEnvVars();
+
+    const result = envOptional("NON_EXISTENT_VAR", "default_value");
+    assertEquals(result, "default_value");
+  } finally {
+    clearTestEnvVars();
+  }
+});
+
+Deno.test("config: envOptional returns string value when variable is set", () => {
+  try {
+    testEnvVars({ TEST_VAR: "test_value" });
+
+    const result = envOptional("TEST_VAR");
+    assertEquals(result, "test_value");
+  } finally {
+    clearTestEnvVars();
+  }
+});
+
+Deno.test("config: envOptional returns string value when variable is set with default", () => {
+  try {
+    testEnvVars({ TEST_VAR: "test_value" });
+
+    const result = envOptional("TEST_VAR", "default_value");
+    assertEquals(result, "test_value");
+  } finally {
+    clearTestEnvVars();
+  }
+});
+
+Deno.test("config: envOptional returns number value when variable is set", () => {
+  try {
+    testEnvVars({ TEST_VAR: "123" });
+
+    const result = envOptional("TEST_VAR", 0);
+    assertEquals(result, 123);
+  } finally {
+    clearTestEnvVars();
+  }
+});
+
+Deno.test("config: envOptional returns number default when variable is not set", () => {
+  try {
+    clearTestEnvVars();
+
+    const result = envOptional("NON_EXISTENT_VAR", 42);
+    assertEquals(result, 42);
+  } finally {
+    clearTestEnvVars();
+  }
+});
+
+Deno.test("config: envOptional returns boolean value when variable is set", () => {
+  try {
+    testEnvVars({ TEST_VAR: "true" });
+
+    const result = envOptional("TEST_VAR", false);
+    assertEquals(result, true);
+  } finally {
+    clearTestEnvVars();
+  }
+});
+
+Deno.test("config: envOptional returns boolean default when variable is not set", () => {
+  try {
+    clearTestEnvVars();
+
+    const result = envOptional("NON_EXISTENT_VAR", true);
+    assertEquals(result, true);
+  } finally {
+    clearTestEnvVars();
+  }
+});
+
+Deno.test("config: envOptional throws on invalid number conversion", () => {
+  try {
+    testEnvVars({ TEST_VAR: "not_a_number" });
+
+    assertThrows(
+      () => envOptional("TEST_VAR", 0),
+      Error,
+      "Environment variable TEST_VAR must be a valid number, got: not_a_number",
     );
   } finally {
     clearTestEnvVars();
   }
 });
 
-Deno.test("config: additional prompt section not included when not set", () => {
+Deno.test("config: envOptional throws on invalid boolean conversion", () => {
   try {
-    testEnvVars({
-      TELEGRAM_BOT_TOKEN: "test_token",
-      TELEGRAM_OWNER_IDS: "123456789",
-      AGENT_LLM_API_KEY: "test_key",
-      // AGENT_LLM_ADDITIONAL_PROMPT not set
-    });
+    testEnvVars({ TEST_VAR: "maybe" });
 
-    const config = createDefaultConfig();
-
-    // Check that additional instructions are empty
-    assertEquals(
-      config.agent.llm.additionalPrompt,
-      "",
+    assertThrows(
+      () => envOptional("TEST_VAR", false),
+      Error,
+      "Environment variable TEST_VAR must be a valid boolean (true/false/1/0), got: maybe",
     );
   } finally {
     clearTestEnvVars();
   }
 });
 
-Deno.test("config: additional prompt trims whitespace", () => {
+Deno.test("config: envOptional handles boolean '1' and '0' values", () => {
   try {
-    testEnvVars({
-      TELEGRAM_BOT_TOKEN: "test_token",
-      TELEGRAM_OWNER_IDS: "123456789",
-      AGENT_LLM_API_KEY: "test_key",
-      AGENT_LLM_ADDITIONAL_PROMPT: "  Always be polite.  \n  And helpful.  ",
-    });
+    testEnvVars({ TEST_VAR_TRUE: "1", TEST_VAR_FALSE: "0" });
 
-    const config = createDefaultConfig();
+    const resultTrue = envOptional("TEST_VAR_TRUE", false);
+    const resultFalse = envOptional("TEST_VAR_FALSE", true);
 
-    // Check that trimmed additional instructions are included
-    assertEquals(
-      config.agent.llm.additionalPrompt.includes("Always be polite."),
-      true,
-    );
-    assertEquals(
-      config.agent.llm.additionalPrompt.includes("And helpful."),
-      true,
-    );
-  } finally {
-    clearTestEnvVars();
-  }
-});
-
-Deno.test("config: empty additional prompt does not add section", () => {
-  try {
-    testEnvVars({
-      TELEGRAM_BOT_TOKEN: "test_token",
-      TELEGRAM_OWNER_IDS: "123456789",
-      AGENT_LLM_API_KEY: "test_key",
-      AGENT_LLM_ADDITIONAL_PROMPT: "",
-    });
-
-    const config = createDefaultConfig();
-
-    // Check that additional instructions are empty string
-    assertEquals(
-      config.agent.llm.additionalPrompt,
-      "",
-    );
-  } finally {
-    clearTestEnvVars();
-  }
-});
-
-Deno.test("config: whitespace-only additional prompt does not add section", () => {
-  try {
-    testEnvVars({
-      TELEGRAM_BOT_TOKEN: "test_token",
-      TELEGRAM_OWNER_IDS: "123456789",
-      AGENT_LLM_API_KEY: "test_key",
-      AGENT_LLM_ADDITIONAL_PROMPT: "   \n\t   ",
-    });
-
-    const config = createDefaultConfig();
-
-    // Check that additional instructions are empty for whitespace-only string
-    assertEquals(
-      config.agent.llm.additionalPrompt,
-      "",
-    );
+    assertEquals(resultTrue, true);
+    assertEquals(resultFalse, false);
   } finally {
     clearTestEnvVars();
   }

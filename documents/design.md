@@ -77,7 +77,7 @@ graph TD
 - **Schema validation:** `zod`
 - **Logging:** console JSON logger
 - **Testing:** `Deno.test` co-located (*.test.ts)
-- **Correlation ID:** `nanoid`
+- **Correlation ID:** custom timestamp-based generator (base64-encoded)
 - **Processes:** `Deno.Command` (no shell/TTY)
 - **LLM:** Vercel AI SDK (`ai`) with any compatible model (e.g., OpenAI gpt-4o-mini, Claude, etc.);
   Experimental_Agent for tool orchestration
@@ -102,8 +102,12 @@ graph TD
   - `AGENT_TERMINAL_TIMEOUT_MS: number` (default 30_000)
   - `AGENT_TERMINAL_MAX_COMMAND_OUTPUT_SIZE: number` (default 200_000)
   - `AGENT_TERMINAL_MAX_LLM_INPUT_LENGTH: number` (default 2000)
-  - `AGENT_LLM_ADDITIONAL_PROMPT: string` (optional) - additional custom instructions for LLM system
-    prompt
+  - `AGENT_LLM_PRICE_INPUT_TOKENS: number` (default 0.15) - price per 1M input tokens in USD
+  - `AGENT_LLM_PRICE_OUTPUT_TOKENS: number` (default 0.60) - price per 1M output tokens in USD
+  - `AGENT_LLM_PRICE_TOTAL_TOKENS: number` (optional) - price per 1M total tokens in USD
+  - `AGENT_LLM_PRICE_REASONING_TOKENS: number` (optional) - price per 1M reasoning tokens in USD
+  - `AGENT_LLM_PRICE_CACHED_INPUT_TOKENS: number` (optional) - price per 1M cached input tokens in
+    USD
   - `SCHEDULER_INTERVAL_HOURS: number` (default 1)
   - `SCHEDULER_JITTER_MINUTES: number` (default 5)
   - `AGENT_METRICS_HISTORY_HOURS: number` (default 1) - how long to keep metrics history
@@ -134,6 +138,13 @@ interface Config {
       additionalPrompt: string;
       systemInfo?: string;
       metricsAnalysisPrompt: string;
+      tokenPrices: {
+        inputTokens: number;
+        outputTokens: number;
+        totalTokens?: number;
+        reasoningTokens?: number;
+        cachedInputTokens?: number;
+      };
     };
   };
   telegram: { botToken: string; ownerIds: readonly number[] };
@@ -145,7 +156,7 @@ interface Config {
 Constants are centralized in `createDefaultConfig()` and environment variables overlay defaults.
 
 The `systemPrompt` defines the LLM's role as home server agent with terminal tool access for system
-tasks. Rich text formatting uses `markdownToTelegramMarkdownV2` converter.
+tasks. Rich text formatting uses `markdownToTelegramHTML` converter.
 
 ### 3.3. File Hierarchy
 
@@ -342,22 +353,34 @@ interface Check {
   reasoning.
 - Model: any compatible model via Vercel AI SDK (e.g., OpenAI gpt-4o-mini, Claude, etc.).
 - Response formats: natural text for conversations, structured decisions for monitoring.
-- **Text Formatting:** `markdownToTelegramMarkdownV2` converts Markdown to Telegram format.
+- **Text Formatting:** `markdownToTelegramHTML` converts Markdown to Telegram HTML format.
 
 ### 4.11. LLM Tools
 
 - **Terminal Tool:**
   - Interface: `{ command: string, cwd?: string, reason: string }` →
-    `{ exitCode, stdout, stdoutTruncated, stderr, stderrTruncated, durationMs }`.
+    `{ exitCode, stdout, stdoutTruncated, stderr, stderrTruncated, durationMs, command }`.
   - Execution: `Deno.Command("sh", ["-c", validated.cmd])` with shell capabilities, timeout control.
   - Capabilities: pipes, redirection, variables, conditionals, globbing via `sh -c`.
   - Safety: timeout (30s default), output limits, command validation, audit logging.
   - Response includes separate truncation flags for stdout and stderr.
+  - Real-time notifications: formatted command and reason sent to Telegram during execution.
+
+- **Facts Management Tools:**
+  - `add_fact`: `{ content: string }` → fact creation with auto-generated ID and timestamp.
+  - `update_fact`: `{ id: string, content: string }` → fact content update by ID.
+  - `delete_fact`: `{ id: string }` → fact removal by ID.
+  - Real-time notifications: formatted operation details sent to Telegram during execution.
 
 - **Stop Tool:**
   - Interface: no parameters; terminates conversation when appropriate.
   - Purpose: Natural conversation ending via LLM decision.
   - Integration: Available in MainAgent for user interactions.
+
+- **Tool Call Interception:**
+  - Callback system: `onToolCallRequested` and `onToolCallFinished` for real-time tracking.
+  - Tool execution monitoring with formatted Telegram notifications.
+  - Non-blocking notifications that don't interfere with LLM processing.
 
 - **Registry:** Tools registered via Vercel AI SDK; accessible only through LLM agents.
 
@@ -404,6 +427,70 @@ interface Check {
 - Correlation ID per Update/scheduled run.
 - Outgoing messages logged via middleware.
 - Secrets filtered from logs.
+
+### 4.16. Telegram Message Formatting
+
+- **Format:** HTML markup with centralized escaping.
+- **Converter:** `markdownToTelegramHTML` transforms Markdown to Telegram HTML.
+- **Supported elements:**
+  - Headers `# ## ###` → `<b>Header</b>`
+  - **Bold** `**text**` → `<b>text</b>`
+  - _Italic_ `*text*` `_text_` → `<i>text</i>`
+  - `Inline code` → `<code>code</code>`
+  - `` ```fenced code``` `` → `<pre><code>code</code></pre>`
+  - `[Link](url)` → `<a href="url">text</a>`
+  - `> Blockquote` → `<blockquote>text</blockquote>`
+- **Parse mode:** `HTML`.
+- **Safety:** HTML entities escaped centrally.
+
+### 4.17. LLM Cost Calculation
+
+- **Purpose:** Calculate LLM usage costs in USD based on token consumption and configured pricing.
+- **Token Types Supported:**
+  - `inputTokens`: Tokens used in user prompts and system messages
+  - `outputTokens`: Tokens generated in LLM responses
+  - `totalTokens`: Total tokens (optional alternative to separate input/output)
+  - `reasoningTokens`: Tokens used for internal reasoning (optional)
+  - `cachedInputTokens`: Cached input tokens at reduced pricing (optional)
+- **Pricing Model:** USD per 1 million tokens; configurable via environment variables.
+- **Calculation Function:**
+  `calcAmount(usage: LanguageModelV2Usage, tokenPrices: TokenPrices): number`
+- **Usage:** Integrated into agent tasks for cost tracking and monitoring.
+- **Fallback:** No external dependencies; pure calculation based on configured prices.
+
+### 4.18. Real-time Tool Call Notifications
+
+- **Purpose:** Provide immediate user feedback during LLM tool execution for enhanced transparency
+  and user experience.
+- **Implementation:**
+  - Tool call interception via callback system in MainAgent.
+  - Real-time Telegram messages sent during tool execution.
+  - Formatted output using Telegram HTML markup for readability.
+- **Supported Notifications:**
+  - **Terminal Commands:** Formatted command with reason in code blocks.
+  - **Facts Management:** Operation details (add, update, delete) in blockquotes.
+- **Technical Details:**
+  - Non-blocking notifications that don't interfere with LLM processing.
+  - Integration with existing Telegram message formatting system.
+  - Callback functions: `onToolCallRequested` and `onToolCallFinished`.
+  - Support for all tool types: terminal, add_fact, update_fact, delete_fact.
+
+### 4.19. Agent Response Debugging and Analysis
+
+- **Purpose:** Save detailed agent response information for debugging, analysis, and monitoring.
+- **Implementation:**
+  - Response dumps saved to `data/main-agent-last-response.yaml` after each interaction.
+  - Structured data extraction via `shortAgentResponseDump` utility function.
+  - YAML serialization with fail-fast error handling.
+- **Data Captured:**
+  - Request parameters: model, temperature, tool choice.
+  - Message chain: role, content, type, name, arguments, output.
+  - Execution details: finish reason, final response, usage statistics.
+- **Technical Details:**
+  - Support for both Jest test environment and Deno runtime.
+  - Integration with logging system for response tracking.
+  - Fail-fast approach: serialization errors are thrown rather than ignored.
+  - Human-readable YAML format for analysis and debugging.
 
 ---
 
@@ -474,7 +561,7 @@ sequenceDiagram
   AGENT-->>HND: response
 ```
 
-### 5.4. Text Message Processing
+### 5.4. Text Message Processing with Real-time Notifications
 
 ```mermaid
 sequenceDiagram
@@ -483,12 +570,21 @@ sequenceDiagram
   participant RT as Router
   participant TXT as Text Handler
   participant AGENT as Agent Facade
+  participant LLM as LLM Model
+  participant TOOL as Tool
 
   TG->>RT: text message
   RT->>TXT: handleText(ctx)
   TXT->>TXT: text processing
   TXT->>TXT: length filter
-  TXT->>AGENT: processUserQuery(text)
+  TXT->>AGENT: processUserQuery(text, callbacks)
+  AGENT->>LLM: generateText(messages)
+  LLM->>TOOL: tool call
+  AGENT->>TXT: onToolCallRequested
+  TXT->>TG: real-time notification
+  TOOL-->>LLM: tool result
+  AGENT->>TXT: onToolCallFinished
+  LLM-->>AGENT: final response
   AGENT-->>TXT: response
   TXT->>TG: reply(response)
 ```
@@ -629,7 +725,7 @@ sequenceDiagram
 
 | SRS FR/NFR                                     | How covered in SDS                                                                                                   |
 | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| FR-1 Telegram bot (long polling)               | Sections 4.1, 4.2, `grammy` choice; no webhook                                                                       |
+| FR-1 Telegram bot (long polling)               | Sections 4.1, 4.2, `grammy` choice; no webhook; HTML formatting (4.16)                                               |
 | FR-2 Routing & validation                      | 4.3 (command registry), `zod`, logs with id                                                                          |
 | FR-3 Terminal tool (LLM-only)                  | 4.11 (Terminal Tool, logging)                                                                                        |
 | FR-4 Periodic metrics scheduler                | 4.6 (jitter, singleflight), 5.2 (metrics collection & LLM analysis)                                                  |
@@ -679,6 +775,9 @@ src/
     types.ts             # Configuration type definitions
     load.ts              # Configuration loading utilities
     utils.ts             # Configuration helper functions
+  llm/
+    cost.ts              # LLM token pricing and cost calculation
+    cost.test.ts         # Cost calculation unit tests
   core/
     types.ts             # Common type definitions and interfaces
   system-info/
@@ -698,11 +797,12 @@ src/
   telegram/
     router.ts            # Command routing and text message handling
     middlewares.ts       # Telegram middleware and logging
-    telegram-format.ts   # Telegram MarkdownV2 formatting utilities
+    telegram-format.ts   # Telegram HTML formatting utilities
     telegram-format.test.ts
+    utils.ts             # Telegram utility functions for response analysis
     handlers/
       command-reset-handler.ts    # History reset command handler
-      text-message-handler.ts     # LLM-powered text message processing
+      text-message-handler.ts     # LLM-powered text message processing with real-time notifications
       text-message-handler.test.ts
   utils/
     logger.ts            # Structured logging with pretty/JSON formats
@@ -727,6 +827,8 @@ src/
 - Config: ENV-based with domain objects; caching; .env auto-loading with ENV override.
 - Facts storage: persistent facts storage with LLM tools (add_fact, update_fact, delete_fact)
   integrated into system prompts.
+- Real-time notifications: tool call callbacks provide immediate user feedback during LLM execution.
+- Response debugging: agent response dumps saved to YAML files for analysis and monitoring.
 
 ---
 
@@ -768,6 +870,11 @@ LOGGING_FORMAT=pretty
 AGENT_MEMORY_MAX_MESSAGES=200
 AGENT_TOOLS_TIMEOUT_MS=30000
 AGENT_TOOLS_MAX_OUTPUT_BYTES=200000
+AGENT_LLM_PRICE_INPUT_TOKENS=0.15
+AGENT_LLM_PRICE_OUTPUT_TOKENS=0.60
+AGENT_LLM_PRICE_TOTAL_TOKENS=
+AGENT_LLM_PRICE_REASONING_TOKENS=
+AGENT_LLM_PRICE_CACHED_INPUT_TOKENS=
 SCHEDULER_INTERVAL_HOURS=1
 SCHEDULER_JITTER_MINUTES=5
 AGENT_METRICS_HISTORY_HOURS=1

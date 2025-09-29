@@ -6,7 +6,6 @@
     "npm:@ai-sdk/provider@2": "2.0.0",
     "npm:ai@^5.0.49": "5.0.53_zod@4.1.11",
     "npm:grammy@^1.38.2": "1.38.2",
-    "npm:nanoid@5": "5.1.5",
     "npm:yaml@^2.3.4": "2.8.1",
     "npm:zod@^4.1.11": "4.1.11"
   },
@@ -98,10 +97,6 @@
     },
     "ms@2.1.3": {
       "integrity": "sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA=="
-    },
-    "nanoid@5.1.5": {
-      "integrity": "sha512-Ir/+ZpE9fDsNH0hQ3C68uyThDXzYcim2EqcZ8zn8Chtt1iylPT9xXJB0kPCnqzgcEGikO9RxSrh63MsmVCU7Fw==",
-      "bin": true
     },
     "node-fetch@2.7.0": {
       "integrity": "sha512-c4FRfUm/dbcWZ7U+1Wq0AwCyFL+3nt2bEw05wfxSz+DWpWsitgmSgYmy2dQdWyKC1694ELPqMs/YzUSNozLt8A==",
@@ -284,7 +279,6 @@
       "npm:@ai-sdk/provider@2",
       "npm:ai@^5.0.49",
       "npm:grammy@^1.38.2",
-      "npm:nanoid@5",
       "npm:yaml@^2.3.4",
       "npm:zod@^4.1.11"
     ]

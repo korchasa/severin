@@ -61,7 +61,7 @@ case "$cmd" in
     echo "Compiling application for $DENO_TARGET..."
     cd "$ROOT_DIR"
     rm -f "$BINARY_NAME"
-    deno compile ${PERMS[@]} --quiet --target "$DENO_TARGET" --output "$BINARY_NAME" main.ts
+    deno compile ${PERMS[@]} --target "$DENO_TARGET" --output "$BINARY_NAME" main.ts
     echo "Preparing remote directory..."
     remote_host=$(echo "$target" | sed 's#:.*##')
     remote_path=$(echo "$target" | sed 's#^[^:]*:##')

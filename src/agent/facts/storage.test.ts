@@ -1,5 +1,5 @@
 import { assert, assertEquals, assertExists } from "@std/assert";
-import { FileFactsStorage } from "./storage.ts";
+import { FileFactsStorage, generateId } from "./storage.ts";
 
 Deno.test("FileFactsStorage: basic CRUD operations", async () => {
   // Create temporary directory for test
@@ -18,6 +18,9 @@ Deno.test("FileFactsStorage: basic CRUD operations", async () => {
       assertExists(addResult1.fact.ts);
     }
     const fact1 = addResult1.success ? addResult1.fact : { id: "", content: "", ts: "" };
+
+    // Small delay to ensure different timestamps
+    await new Promise((resolve) => setTimeout(resolve, 1));
 
     // Test add another fact
     const addResult2 = await storage.add({ content: "Test fact 2" });
@@ -186,11 +189,19 @@ Deno.test("FileFactsStorage: toMarkdown formats facts correctly", async () => {
     // Add some facts
     const addResult1 = await storage.add({ content: "Short fact about the system" });
     assertEquals(addResult1.success, true);
+
+    // Small delay to ensure different timestamps
+    await new Promise((resolve) => setTimeout(resolve, 1));
+
     const addResult2 = await storage.add({
       content:
         "This is a much longer fact that contains more detailed information about the server configuration and setup process that might be relevant for future reference and includes additional technical details about networking, security policies, backup procedures, monitoring systems, and various other operational aspects of the server management.",
     });
     assertEquals(addResult2.success, true);
+
+    // Small delay to ensure different timestamps
+    await new Promise((resolve) => setTimeout(resolve, 1));
+
     const addResult3 = await storage.add({ content: "Another brief fact" });
     assertEquals(addResult3.success, true);
 
@@ -306,4 +317,27 @@ Deno.test("FileFactsStorage: toMarkdown throws on read errors", async () => {
 
   // Cleanup
   await Deno.remove(tempDir, { recursive: true });
+});
+
+Deno.test("generateId: generates valid timestamp-based IDs", async () => {
+  // Test with fixed timestamps for deterministic results
+  const testCases = [
+    { timestamp: 1000, expectedId: "MTAwMA" },
+    { timestamp: 123456789, expectedId: "MTIzNDU2Nzg5" },
+    { timestamp: 1640995200000, expectedId: "MTY0MDk5NTIwMDAwMA" },
+  ];
+
+  for (const { timestamp, expectedId } of testCases) {
+    const id = generateId(timestamp);
+    assertEquals(id, expectedId, `ID for timestamp ${timestamp} should be "${expectedId}"`);
+  }
+
+  // Test default behavior generates different IDs on consecutive calls
+  const id1 = generateId();
+
+  // Small delay to ensure different timestamps
+  await new Promise((resolve) => setTimeout(resolve, 1));
+
+  const id2 = generateId();
+  assert(id1 !== id2, "Different calls should generate different IDs");
 });
