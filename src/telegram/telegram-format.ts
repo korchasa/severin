@@ -5,7 +5,7 @@
  */
 
 /**
- * Экранирует HTML-спецсимволы для безопасной вставки в HTML-текст.
+ * Escapes HTML special characters for safe insertion into HTML text.
  */
 export function escapeHtml(text: string): string {
   return String(text)
