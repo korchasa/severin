@@ -18,7 +18,8 @@ import { createAddFactTool, createDeleteFactTool, createUpdateFactTool } from ".
 import z from "zod";
 import { TerminalParams } from "./tools/terminal.ts";
 import { AddFactParams, DeleteFactParams, UpdateFactParams } from "./tools/facts.ts";
-import { shortAgentResponseDump, yamlDump } from "../utils/dump.ts";
+import { yamlDump } from "../utils/dump.ts";
+import { shortAgentResponseDump } from "../telegram/utils.ts";
 
 export type ToolName = "terminal" | "add_fact" | "update_fact" | "delete_fact";
 export type ToolInput =

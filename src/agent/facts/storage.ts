@@ -8,9 +8,9 @@ import type { Fact, FactsStorage } from "../../core/types.ts";
 import { log } from "../../utils/logger.ts";
 
 /**
- * Генерирует короткий символьный ID на основе timestamp
- * Использует base64 представление текущего времени в миллисекундах
- * Аналогично идентификаторам Twitter (snowflake IDs)
+ * Generates a short character ID based on timestamp
+ * Uses base64 representation of current time in milliseconds
+ * Similar to Twitter identifiers (snowflake IDs)
  */
 export function generateId(timestamp?: number): string {
   const ts = timestamp ?? Date.now();

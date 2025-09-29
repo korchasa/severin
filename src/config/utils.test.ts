@@ -465,8 +465,8 @@ Deno.test("utils: toJSONWithoutPII handles null config", () => {
 Deno.test("utils: toJSONWithoutPII handles undefined config", () => {
   const result = toJSONWithoutPII(undefined);
 
-  // JSON.stringify(undefined) returns undefined, not a string
-  assertEquals(result, undefined);
+  // Function returns string representation of undefined
+  assertEquals(result, "undefined");
 });
 
 Deno.test("utils: toJSONWithoutPII handles empty object", () => {

@@ -37,22 +37,22 @@ export function toPreCode(
 }
 
 /**
- * Преобразует упрощённый Markdown во встроенный HTML Telegram.
- * Поддержка:
- * - Заголовки #..###### → <b>…</b> строкой
- * - **bold** → <b>, *italic* или _italic_ → <i>
+ * Converts simplified Markdown to inline Telegram HTML.
+ * Support:
+ * - Headers #..###### → <b>…</b> line
+ * - **bold** → <b>, *italic* or _italic_ → <i>
  * - `code` → <code>
  * - ```lang?\n...``` → <pre><code class="language-?">…</code></pre>
  * - [text](url) → <a href="url">text</a>
- * - > quote (мультистрочно) → <blockquote>…</blockquote>
+ * - > quote (multiline) → <blockquote>…</blockquote>
  */
 export function markdownToTelegramHTML(input: string | null | undefined): string {
   if (!input) return "";
 
-  // Обработка кодовых блоков сначала, чтобы не испортить содержимое
+  // Process code blocks first to avoid corrupting content
   let text = input;
 
-  // 1) Вырезаем блокцитаты и ставим плейсхолдеры, чтобы не форматировать их содержимое
+  // 1) Extract blockquotes and set placeholders to avoid formatting their content
   const bqStore: string[] = [];
   text = text.replace(/(^> .*(?:\n> .*)*)/gm, (block) => {
     const idx = bqStore.push(block) - 1;
@@ -88,7 +88,7 @@ export function markdownToTelegramHTML(input: string | null | undefined): string
   text = replaceItalics(text, /(^|\W)\*([^*]+)\*(?=\W|$)/g);
   text = replaceItalics(text, /(^|\W)_([^_]+)_(?=\W|$)/g);
 
-  // 3) Восстанавливаем блокцитаты из плейсхолдеров без дополнительного форматирования
+  // 3) Restore blockquotes from placeholders without additional formatting
   if (bqStore.length > 0) {
     text = text.replace(/__BQ(\d+)__/g, (_m, sidx) => {
       const idx = parseInt(sidx, 10);
