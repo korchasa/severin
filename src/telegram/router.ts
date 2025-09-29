@@ -5,7 +5,7 @@
 import type { Bot, Context } from "grammy";
 import { z } from "zod";
 import type { CommandDef } from "../core/types.ts";
-import { logUpdate } from "../utils/logger.ts";
+import { log } from "../utils/logger.ts";
 
 /**
  * Command registry for managing bot commands
@@ -40,11 +40,19 @@ export class CommandRouter {
         const candidate = { text: raw.trim() || undefined } as unknown;
         const parsed = (def.args as z.ZodType<unknown>).safeParse(candidate);
         if (!parsed.success) {
-          logUpdate(ctx, "command_validation_error", { command: def.name });
+          log({
+            "mod": "tg",
+            "event": "command_validation_error",
+            "command": def.name,
+          });
           await ctx.reply("Input data appears incorrect. Try /help.");
           return;
         }
-        logUpdate(ctx, "command_executed", { command: def.name });
+        log({
+          "mod": "tg",
+          "event": "command_executed",
+          "command": def.name,
+        });
         await def.handler(ctx, parsed.data);
       });
     }

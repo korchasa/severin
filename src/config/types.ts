@@ -6,15 +6,24 @@ import { z } from "zod";
 /**
  * Domain-specific configuration sections
  */
+export interface TokenPrices {
+  readonly inputTokens: number;
+  readonly outputTokens: number;
+  readonly totalTokens?: number;
+  readonly reasoningTokens?: number;
+  readonly cachedInputTokens?: number;
+}
+
 export interface LlmConfig {
   readonly provider: string;
   readonly apiKey: string;
   readonly model: string;
+  readonly temperature: number;
   readonly maxSteps: number;
   readonly maxStdoutLength: number;
-  readonly basePrompt: string;
-  readonly additionalPrompt: string;
+  readonly basePrompt?: string;
   readonly systemInfo?: string;
+  readonly tokenPrices: TokenPrices;
 }
 
 export interface SchedulerConfig {
@@ -88,11 +97,18 @@ export const configSchema = z.object({
       provider: z.string(),
       apiKey: z.string().min(1),
       model: z.string(),
+      temperature: z.number().nonnegative(),
       maxSteps: z.number().int().positive(),
       maxStdoutLength: z.number().int().positive(),
-      basePrompt: z.string(),
-      additionalPrompt: z.string(),
+      basePrompt: z.string().optional(),
       systemInfo: z.string().optional(),
+      tokenPrices: z.object({
+        inputTokens: z.number().nonnegative(),
+        outputTokens: z.number().nonnegative(),
+        totalTokens: z.number().nonnegative().optional(),
+        reasoningTokens: z.number().nonnegative().optional(),
+        cachedInputTokens: z.number().nonnegative().optional(),
+      }),
     }),
   }),
   telegram: z.object({

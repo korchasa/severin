@@ -27,6 +27,7 @@ export interface TerminalResponse {
   readonly stderr: string;
   readonly stderrTruncated: boolean;
   readonly durationMs: number;
+  readonly command: string;
 }
 
 // Tool registry types

@@ -25,8 +25,12 @@ const mockConfig: Config = {
       maxSteps: 30,
       maxStdoutLength: 2000,
       basePrompt: "test",
-      additionalPrompt: "",
       systemInfo: undefined,
+      temperature: 0.1,
+      tokenPrices: {
+        inputTokens: 0.15,
+        outputTokens: 0.60,
+      },
     },
   },
   telegram: { botToken: "test", ownerIds: [123] },

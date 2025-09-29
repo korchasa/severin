@@ -2,7 +2,7 @@
  * Configuration and environment variable validation
  */
 import type { Config } from "./types.ts";
-import { env, parseOwnerIds } from "./utils.ts";
+import { env, envNumberOptional, envOptional, parseOwnerIds } from "./utils.ts";
 export type { Config };
 
 /**
@@ -35,21 +35,28 @@ export function createDefaultConfig(systemInfo?: string): Config {
       llm: {
         // LLM provider (e.g., "openai", "anthropic")
         provider: env("AGENT_LLM_PROVIDER", "openai"),
+        // Temperature for LLM
+        temperature: env("AGENT_LLM_TEMPERATURE", 0),
         // API key for LLM provider (required)
         apiKey: env("AGENT_LLM_API_KEY"), // Required, no default
         // Model name to use
-        model: env("AGENT_LLM_MODEL", "gpt-5-mini"),
+        model: env("AGENT_LLM_MODEL", "gpt-4.1-mini"),
         // Maximum number of reasoning steps
         maxSteps: env("AGENT_LLM_MAX_STEPS", 30),
         // Maximum length of stdout output to process
         maxStdoutLength: env("AGENT_LLM_MAX_STDOUT_LENGTH", 2000),
         // Base prompt template
-        basePrompt:
-          "You are a home server agent. Your goal is to help users with server management tasks with the tools provided. You must use clear and concise language.",
-        // Additional custom instructions
-        additionalPrompt: env("AGENT_LLM_ADDITIONAL_PROMPT", "").trim(),
+        basePrompt: envOptional("AGENT_LLM_BASE_PROMPT"),
         // System information for LLM context
         systemInfo,
+        // Token prices in USD per 1M tokens
+        tokenPrices: {
+          inputTokens: env("AGENT_LLM_PRICE_INPUT_TOKENS", 0.15), // $0.15 per 1M input tokens
+          outputTokens: env("AGENT_LLM_PRICE_OUTPUT_TOKENS", 0.60), // $0.60 per 1M output tokens
+          totalTokens: envNumberOptional("AGENT_LLM_PRICE_TOTAL_TOKENS"), // Optional total token price
+          reasoningTokens: envNumberOptional("AGENT_LLM_PRICE_REASONING_TOKENS"), // Optional reasoning token price
+          cachedInputTokens: envNumberOptional("AGENT_LLM_PRICE_CACHED_INPUT_TOKENS"), // Optional cached input token price
+        },
       },
     },
     // Telegram bot configuration

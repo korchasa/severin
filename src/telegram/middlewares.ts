@@ -3,7 +3,7 @@
  */
 
 import type { Context } from "grammy";
-import { genCorrelationId, logOutgoingMessage, logUpdate } from "../utils/logger.ts";
+import { genCorrelationId, log } from "../utils/logger.ts";
 
 /**
  * Creates authorization middleware for the bot
@@ -16,13 +16,20 @@ export function createAuthMiddleware(ownerIds: readonly number[]) {
 
     // Log incoming update with message text for debugging
     const messageText = ctx.message?.text;
-    logUpdate(ctx, "update_in", { message_text: messageText });
+    log({
+      "mod": "tg",
+      "event": "update_in",
+      "message_text": messageText,
+    });
 
     const uid = ctx.from?.id;
     // Check that user is authorized (ID in owners list)
     if (!uid || !ownerIds.includes(uid)) {
       await ctx.reply("This bot is private. Access denied.");
-      logUpdate(ctx, "unauthorized");
+      log({
+        "mod": "tg",
+        "event": "unauthorized",
+      });
       return;
     }
 
@@ -41,7 +48,12 @@ export function createLoggingMiddleware() {
       const text = typeof args[0] === "string" ? args[0] : JSON.stringify(args[0]);
       const chatId = ctx.chat?.id;
       if (chatId) {
-        logOutgoingMessage(ctx, "reply", chatId, text);
+        log({
+          "mod": "tg",
+          "event": "reply_out",
+          "chat_id": chatId,
+          "message_text": text,
+        });
       }
       return originalReply(...args);
     };
@@ -51,7 +63,12 @@ export function createLoggingMiddleware() {
     ctx.api.sendMessage = (...args: Parameters<typeof ctx.api.sendMessage>) => {
       const [chatId, text] = args;
       const messageText = typeof text === "string" ? text : JSON.stringify(text);
-      logOutgoingMessage(ctx, "sendMessage", chatId, messageText);
+      log({
+        "mod": "tg",
+        "event": "message_out",
+        "chat_id": chatId,
+        "message_text": messageText,
+      });
       return originalSendMessage(...args);
     };
 
