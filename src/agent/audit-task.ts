@@ -50,10 +50,12 @@ export type AuditSummary = {
  */
 export function createAuditTask({
   llmModel,
+  llmTemperature,
   systemInfo,
   factsStorage,
 }: {
   llmModel: LanguageModelV2;
+  llmTemperature: number;
   systemInfo: SystemInfo;
   factsStorage: FactsStorage;
 }): AuditTask {
@@ -76,6 +78,7 @@ export function createAuditTask({
         // Generate LLM decision
         const { object, usage } = await generateObject({
           model: llmModel,
+          temperature: llmTemperature,
           messages: [{ role: "system", content: prompt }],
           schema: z.object({
             isEscalationNeeded: z.boolean(),

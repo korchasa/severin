@@ -65,7 +65,7 @@ export function createTextMessageHandler(
               const reason = params.reason.replace(/\n/g, "\n# ");
               await ctx.reply(
                 markdownToTelegramHTML(
-                  `<pre><code class="language-bash"># ${reason}\n&gt; ${params.command}</code></pre>`,
+                  `<blockquote expandable><pre><code class="language-bash"># ${reason}\n&gt; ${params.command}</code></pre></blockquote>`,
                 ),
                 { parse_mode: "HTML" },
               );

@@ -18,6 +18,7 @@ export interface LlmConfig {
   readonly provider: string;
   readonly apiKey: string;
   readonly model: string;
+  readonly temperature: number;
   readonly maxSteps: number;
   readonly maxStdoutLength: number;
   readonly basePrompt: string;
@@ -96,6 +97,7 @@ export const configSchema = z.object({
       provider: z.string(),
       apiKey: z.string().min(1),
       model: z.string(),
+      temperature: z.number().nonnegative(),
       maxSteps: z.number().int().positive(),
       maxStdoutLength: z.number().int().positive(),
       basePrompt: z.string(),

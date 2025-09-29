@@ -51,6 +51,7 @@ export interface MainAgent {
 
 export function createAgent({
   llmModel,
+  llmTemperature,
   terminalTool,
   conversationHistory,
   systemInfo,
@@ -58,6 +59,7 @@ export function createAgent({
   dataDir,
 }: {
   llmModel: LanguageModelV2;
+  llmTemperature: number;
   terminalTool: Tool;
   conversationHistory: ConversationHistory;
   systemInfo: SystemInfo;
@@ -112,6 +114,7 @@ export function createAgent({
       try {
         const agent = new Agent({
           model: llmModel,
+          temperature: llmTemperature,
           system: await generateSystemPrompt({
             serverInfo: systemInfo,
             factsStorage,

@@ -71,14 +71,26 @@ export async function startAgent(): Promise<void> {
   const conversationHistory = new ConversationHistory();
   const agent = createMainAgent({
     llmModel,
+    llmTemperature: config.agent.llm.temperature,
     terminalTool,
     conversationHistory,
     systemInfo,
     factsStorage,
     dataDir: config.agent.dataDir,
   });
-  const auditTask = createAuditTask({ llmModel, systemInfo, factsStorage });
-  const diagnoseTask = createDiagnoseTask({ llmModel, terminalTool, systemInfo, factsStorage });
+  const auditTask = createAuditTask({
+    llmModel,
+    llmTemperature: config.agent.llm.temperature,
+    systemInfo,
+    factsStorage,
+  });
+  const diagnoseTask = createDiagnoseTask({
+    llmModel,
+    llmTemperature: config.agent.llm.temperature,
+    terminalTool,
+    systemInfo,
+    factsStorage,
+  });
 
   // LLM adapter encapsulated within agent
 

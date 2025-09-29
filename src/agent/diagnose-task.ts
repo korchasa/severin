@@ -44,11 +44,13 @@ export type DiagnoseSummary = {
  */
 export function createDiagnoseTask({
   llmModel,
+  llmTemperature,
   terminalTool,
   systemInfo,
   factsStorage,
 }: {
   llmModel: LanguageModelV2;
+  llmTemperature: number;
   terminalTool: Tool;
   systemInfo: SystemInfo;
   factsStorage: FactsStorage;
@@ -78,6 +80,7 @@ export function createDiagnoseTask({
       try {
         const agent = new Agent({
           model: llmModel,
+          temperature: llmTemperature,
           tools: {
             terminal: terminalTool,
             stop: stopTool(),

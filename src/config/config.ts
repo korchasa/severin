@@ -35,6 +35,8 @@ export function createDefaultConfig(systemInfo?: string): Config {
       llm: {
         // LLM provider (e.g., "openai", "anthropic")
         provider: env("AGENT_LLM_PROVIDER", "openai"),
+        // Temperature for LLM
+        temperature: env("AGENT_LLM_TEMPERATURE", 0),
         // API key for LLM provider (required)
         apiKey: env("AGENT_LLM_API_KEY"), // Required, no default
         // Model name to use

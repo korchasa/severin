@@ -26,6 +26,7 @@ const mockConfig: Config = {
       maxStdoutLength: 2000,
       basePrompt: "test",
       systemInfo: undefined,
+      temperature: 0.1,
       tokenPrices: {
         inputTokens: 0.15,
         outputTokens: 0.60,
