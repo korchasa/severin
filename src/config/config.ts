@@ -40,7 +40,7 @@ export function createDefaultConfig(systemInfo?: string): Config {
         // API key for LLM provider (required)
         apiKey: env("AGENT_LLM_API_KEY"), // Required, no default
         // Model name to use
-        model: env("AGENT_LLM_MODEL", "gpt-5-mini"),
+        model: env("AGENT_LLM_MODEL", "gpt-4.1-mini"),
         // Maximum number of reasoning steps
         maxSteps: env("AGENT_LLM_MAX_STEPS", 30),
         // Maximum length of stdout output to process
