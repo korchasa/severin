@@ -127,8 +127,11 @@ export function envNumberOptional(name: string, defaultValue?: number): number |
  */
 export function toJSONWithoutPII(config: unknown): string {
   // Handle null and undefined cases
-  if (config === null || config === undefined) {
-    return JSON.stringify(config);
+  if (config === undefined) {
+    return "undefined";
+  }
+  if (config === null) {
+    return "null";
   }
 
   const masked = JSON.parse(JSON.stringify(config));
