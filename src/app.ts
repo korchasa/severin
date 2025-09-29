@@ -72,6 +72,7 @@ export async function startAgent(): Promise<void> {
   const agent = createMainAgent({
     llmModel,
     llmTemperature: config.agent.llm.temperature,
+    basePrompt: config.agent.llm.basePrompt,
     terminalTool,
     conversationHistory,
     systemInfo,

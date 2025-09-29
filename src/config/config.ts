@@ -2,7 +2,7 @@
  * Configuration and environment variable validation
  */
 import type { Config } from "./types.ts";
-import { env, envNumberOptional, parseOwnerIds } from "./utils.ts";
+import { env, envNumberOptional, envOptional, parseOwnerIds } from "./utils.ts";
 export type { Config };
 
 /**
@@ -46,8 +46,7 @@ export function createDefaultConfig(systemInfo?: string): Config {
         // Maximum length of stdout output to process
         maxStdoutLength: env("AGENT_LLM_MAX_STDOUT_LENGTH", 2000),
         // Base prompt template
-        basePrompt:
-          "You are a home server agent. Your goal is to help users with server management tasks with the tools provided. You must use clear and concise language.",
+        basePrompt: envOptional("AGENT_LLM_BASE_PROMPT"),
         // System information for LLM context
         systemInfo,
         // Token prices in USD per 1M tokens

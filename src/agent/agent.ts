@@ -52,6 +52,7 @@ export interface MainAgent {
 export function createAgent({
   llmModel,
   llmTemperature,
+  basePrompt,
   terminalTool,
   conversationHistory,
   systemInfo,
@@ -60,6 +61,7 @@ export function createAgent({
 }: {
   llmModel: LanguageModelV2;
   llmTemperature: number;
+  basePrompt?: string;
   terminalTool: Tool;
   conversationHistory: ConversationHistory;
   systemInfo: SystemInfo;
@@ -116,6 +118,7 @@ export function createAgent({
           model: llmModel,
           temperature: llmTemperature,
           system: await generateSystemPrompt({
+            basePrompt,
             serverInfo: systemInfo,
             factsStorage,
           }),
@@ -186,12 +189,17 @@ export function createAgent({
 }
 
 async function generateSystemPrompt({
+  basePrompt,
   serverInfo,
   factsStorage,
 }: {
+  basePrompt?: string;
   serverInfo: SystemInfo;
   factsStorage: FactsStorage;
 }) {
+  if (basePrompt !== undefined) {
+    return basePrompt;
+  }
   return `# System Prompt for Server Agent
 
 ## Role & Mission
