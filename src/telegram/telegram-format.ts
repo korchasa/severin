@@ -17,7 +17,7 @@ export function escapeHtml(text: string): string {
 }
 
 /**
- * Форматирует как многострочный блок кода.
+ * Formats as a multiline code block.
  */
 export function toPre(text: string): string {
   return `<pre>${escapeHtml(text)}</pre>`;
