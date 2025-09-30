@@ -5,13 +5,13 @@
 
 import { assert } from "@std/assert";
 import { createTextMessageHandler } from "./text-message-handler.ts";
-import type { MainAgent } from "../../agent/agent.ts";
+import type { MainAgent } from "../../agent/main-agent.ts";
 import type { Config } from "../../config/types.ts";
 
 // Mock dependencies
-const mockAgent: MainAgent = {
+const mockAgent = {
   processUserQuery: () => Promise.resolve({ text: "Mock response" }),
-};
+} as unknown as MainAgent;
 
 const mockConfig: Config = {
   agent: {

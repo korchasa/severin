@@ -8,7 +8,7 @@ import { loadConfig } from "./config/load.ts";
 import { toJSONWithoutPII } from "./config/utils.ts";
 import { createAuthMiddleware, createLoggingMiddleware } from "./telegram/middlewares.ts";
 import { initializeLogger, log } from "./utils/logger.ts";
-import { createAgent as createMainAgent } from "./agent/agent.ts";
+import { MainAgent } from "./agent/main-agent.ts";
 import { CommandRouter } from "./telegram/router.ts";
 import { healthScheduler } from "./scheduler/scheduler.ts";
 import { createHistoryResetCommand } from "./telegram/handlers/command-reset-handler.ts";
@@ -20,6 +20,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createDiagnoseTask } from "./agent/diagnose-task.ts";
 import { createTerminalTool } from "./agent/tools/terminal.ts";
 import { createFactsStorage } from "./agent/facts/storage.ts";
+import { MainAgentExecutor } from "./agent/main-agent-executor.ts";
 // LLM adapter encapsulated within agent
 
 /**
@@ -69,11 +70,12 @@ export async function startAgent(): Promise<void> {
   const llmProvider = createOpenAI({ apiKey: config.agent.llm.apiKey });
   const llmModel = llmProvider(config.agent.llm.model);
   const conversationHistory = new ConversationHistory();
-  const agent = createMainAgent({
+  const mainAgentExecutor = new MainAgentExecutor(terminalTool, factsStorage);
+  const mainAgent = new MainAgent({
     llmModel,
     llmTemperature: config.agent.llm.temperature,
     basePrompt: config.agent.llm.basePrompt,
-    terminalTool,
+    executor: mainAgentExecutor,
     conversationHistory,
     systemInfo,
     factsStorage,
@@ -115,7 +117,7 @@ export async function startAgent(): Promise<void> {
   router.setupHandlers(bot);
 
   // Setup text message handler
-  const textMessageHandler = createTextMessageHandler(agent, config);
+  const textMessageHandler = createTextMessageHandler(mainAgent, config);
   router.setupTextHandler(bot, textMessageHandler);
 
   // Start the bot

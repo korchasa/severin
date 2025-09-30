@@ -6,9 +6,9 @@ Deno.test("conversation history: getRecentMessages respects symbol limit", () =>
   const conversationHistory = new ConversationHistory();
 
   // Add messages with known lengths
-  conversationHistory.appendMessage("user", "Hello"); // 5 chars
-  conversationHistory.appendMessage("assistant", "Hi there"); // 8 chars
-  conversationHistory.appendMessage("user", "How are you doing today?"); // 23 chars
+  conversationHistory.append({ role: "user", content: "Hello" }); // 5 chars
+  conversationHistory.append({ role: "assistant", content: "Hi there" }); // 8 chars
+  conversationHistory.append({ role: "user", content: "How are you doing today?" }); // 23 chars
 
   // Get recent messages with limit of 15 chars
   const context = conversationHistory.getRecentMessages(15);
@@ -20,8 +20,8 @@ Deno.test("conversation history: getRecentMessages respects symbol limit", () =>
 Deno.test("conversation history: getRecentMessages with large limit", () => {
   const conversationHistory = new ConversationHistory();
 
-  conversationHistory.appendMessage("user", "Hello");
-  conversationHistory.appendMessage("assistant", "Hi there");
+  conversationHistory.append({ role: "user", content: "Hello" });
+  conversationHistory.append({ role: "assistant", content: "Hi there" });
 
   // Large limit should return all messages
   const context = conversationHistory.getRecentMessages(100);
@@ -33,8 +33,11 @@ Deno.test("conversation history: getRecentMessages with large limit", () => {
 Deno.test("conversation history: getRecentMessages with small limit", () => {
   const conversationHistory = new ConversationHistory();
 
-  conversationHistory.appendMessage("user", "Very long message that exceeds the limit");
-  conversationHistory.appendMessage("assistant", "Short");
+  conversationHistory.append({
+    role: "user",
+    content: "Very long message that exceeds the limit",
+  });
+  conversationHistory.append({ role: "assistant", content: "Short" });
 
   // Small limit should return only the most recent message that fits
   const context = conversationHistory.getRecentMessages(10);
@@ -45,7 +48,7 @@ Deno.test("conversation history: getRecentMessages with small limit", () => {
 Deno.test("conversation history: reset messages", () => {
   const conversationHistory = new ConversationHistory();
 
-  conversationHistory.appendMessage("user", "Hello");
+  conversationHistory.append({ role: "user", content: "Hello" });
 
   assertEquals(conversationHistory.getRecentMessages(1000).length, 1);
 

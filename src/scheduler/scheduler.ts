@@ -117,7 +117,10 @@ class HealthScheduler {
       try {
         const safeText = markdownToTelegramHTML("🚨 " + diagnoseSummary.mostLikelyHypothesis);
         await this.state.bot.api.sendMessage(chatId, safeText, { parse_mode: "HTML" });
-        this.state.history.appendMessage("assistant", diagnoseSummary.mostLikelyHypothesis);
+        this.state.history.append({
+          role: "assistant",
+          content: diagnoseSummary.mostLikelyHypothesis,
+        });
         log({
           mod: "checks",
           event: "notification_sent",

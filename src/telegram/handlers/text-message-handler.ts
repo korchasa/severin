@@ -9,12 +9,13 @@
 
 import type { Context } from "grammy";
 import type { Config } from "../../config/types.ts";
-import type { MainAgent } from "../../agent/agent.ts";
+import type { MainAgent } from "../../agent/main-agent.ts";
 import { log } from "../../utils/logger.ts";
 import { markdownToTelegramHTML } from "../telegram-format.ts";
-import { TerminalParams } from "../../agent/tools/terminal.ts";
+import { TerminalRequest } from "../../core/types.ts";
 import { z } from "zod";
 import { AddFactParams, DeleteFactParams, UpdateFactParams } from "../../agent/tools/facts.ts";
+import { ToolSet, TypedToolCall, TypedToolResult } from "ai";
 
 /**
  * Creates a text message handler that processes any text message as an LLM query
@@ -25,21 +26,21 @@ export function createTextMessageHandler(
   _config: Config,
 ) {
   return async (ctx: Context): Promise<void> => {
-    const text = ctx.message?.text?.trim();
+    const userQuery = ctx.message?.text?.trim();
 
     // Skip empty messages or very short messages (likely typos)
-    if (!text || text.length < 2) {
+    if (!userQuery || userQuery.length < 2) {
       log({
         "mod": "tg",
         "event": "text_message_ignored",
         "reason": "too_short",
-        "length": text?.length || 0,
+        "length": userQuery?.length || 0,
       });
       return;
     }
 
     // Skip messages that start with / (commands are handled separately)
-    if (text.startsWith("/")) {
+    if (userQuery.startsWith("/")) {
       return;
     }
 
@@ -47,7 +48,7 @@ export function createTextMessageHandler(
     log({
       "mod": "tg",
       "event": "text_message_to_llm",
-      "text_length": text.length,
+      "text_length": userQuery.length,
     });
 
     // Send typing action to show the bot is processing
@@ -55,13 +56,21 @@ export function createTextMessageHandler(
 
     try {
       // Process query through agent
-      const { text: response } = await mainAgent.processUserQuery({
-        text,
+      const { text: responseText } = await mainAgent.processUserQuery({
+        userQuery: userQuery,
         correlationId: ctx.update.update_id?.toString(),
-        onToolCallRequested: async (toolName, input) => {
-          switch (toolName) {
+        onThoughts: async (thoughts) => {
+          await ctx.reply(
+            markdownToTelegramHTML(
+              `<blockquote expandable><pre><code class="language-bash"># ${thoughts}</code></pre></blockquote>`,
+            ),
+            { parse_mode: "HTML" },
+          );
+        },
+        beforeCall: async (call: TypedToolCall<ToolSet>) => {
+          switch (call.toolName) {
             case "terminal": {
-              const params = input as z.infer<typeof TerminalParams>;
+              const params = call.input as TerminalRequest;
               const reason = params.reason.replace(/\n/g, "\n# ");
               await ctx.reply(
                 markdownToTelegramHTML(
@@ -72,7 +81,7 @@ export function createTextMessageHandler(
               break;
             }
             case "add_fact": {
-              const params = input as z.infer<typeof AddFactParams>;
+              const params = call.input as z.infer<typeof AddFactParams>;
               await ctx.reply(
                 markdownToTelegramHTML(
                   `<blockquote>Add fact "${params.content}"</blockquote>`,
@@ -82,7 +91,7 @@ export function createTextMessageHandler(
               break;
             }
             case "update_fact": {
-              const params = input as z.infer<typeof UpdateFactParams>;
+              const params = call.input as z.infer<typeof UpdateFactParams>;
               await ctx.reply(
                 markdownToTelegramHTML(
                   `<blockquote>Update fact "${params.content}"</blockquote>`,
@@ -92,7 +101,7 @@ export function createTextMessageHandler(
               break;
             }
             case "delete_fact": {
-              const params = input as z.infer<typeof DeleteFactParams>;
+              const params = call.input as z.infer<typeof DeleteFactParams>;
               await ctx.reply(
                 markdownToTelegramHTML(
                   `<blockquote>Delete fact "${params.id}"</blockquote>`,
@@ -102,22 +111,23 @@ export function createTextMessageHandler(
               break;
             }
             default: {
-              throw new Error(`Unexpected tool: ${toolName}`);
+              throw new Error(`Unexpected tool: ${call.toolName}`);
             }
           }
         },
-        onToolCallFinished: (_toolName, _input, _output) => {
+        afterCall: (_result: TypedToolResult<ToolSet>) => {
           return;
         },
       });
 
       // Don't send empty responses to avoid Telegram API errors
-      if (response.trim()) {
-        await ctx.reply(markdownToTelegramHTML(response), { parse_mode: "HTML" });
+      if (responseText.trim()) {
+        await ctx.reply(markdownToTelegramHTML(responseText), { parse_mode: "HTML" });
       }
       log({
         "mod": "tg",
         "event": "agent_response",
+        "response_length": responseText.length,
       });
     } catch (error) {
       await ctx.reply(
@@ -127,9 +137,10 @@ export function createTextMessageHandler(
         },
       );
       log({
-        "mod": "tg",
-        "event": "llm_error",
-        "message": (error as Error).message,
+        mod: "tg",
+        event: "llm_error",
+        message: (error as Error).message,
+        trace: (error as Error).stack,
       });
     }
   };

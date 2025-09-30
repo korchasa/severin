@@ -2,38 +2,24 @@
  * Conversation history management with symbol-based limiting on retrieval
  */
 
-import type { HistoryMsg } from "../../core/types.ts";
+import { ModelMessage } from "ai";
 
 /**
  * Internal conversation history wrapper.
  * Stores complete conversation history and limits output only when retrieving messages.
  */
 export class ConversationHistory {
-  private history: HistoryMsg[] = [];
+  private history: ModelMessage[] = [];
 
   constructor() {
     // No parameters needed - getRecentMessages accepts maxSymbols as parameter
   }
 
   /**
-   * Adds a record to history.
-   * Note: No automatic trimming is performed - use getRecentMessages() to limit output.
-   */
-  private append(line: HistoryMsg): void {
-    this.history.push(line);
-  }
-
-  /**
    * Appends a message to conversation history
    */
-  appendMessage(role: "user" | "assistant", content: string): void {
-    const message: HistoryMsg = {
-      type: "msg",
-      role,
-      content,
-      ts: new Date().toISOString(),
-    };
-    this.append(message);
+  append(msg: ModelMessage): void {
+    this.history.push(msg);
   }
 
   /**
@@ -41,8 +27,8 @@ export class ConversationHistory {
    * Returns the most recent messages that can fit within maxSymbols characters.
    * @param maxSymbols Maximum total characters allowed for all messages combined
    */
-  getRecentMessages(maxSymbols: number): HistoryMsg[] {
-    const result: HistoryMsg[] = [];
+  getRecentMessages(maxSymbols: number): ModelMessage[] {
+    const result: ModelMessage[] = [];
     let totalSymbols = 0;
 
     // Start from the most recent messages and work backwards
