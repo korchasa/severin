@@ -9,8 +9,16 @@
 import { ConversationHistory } from "./history/service.ts";
 import { log } from "../utils/logger.ts";
 import type { LanguageModelV2 } from "@ai-sdk/provider";
-import { FinishReason, generateText, GenerateTextResult, ToolSet } from "ai";
-import { stepCountIs } from "ai";
+import {
+  FinishReason,
+  stepCountIs,
+  streamText,
+  TextPart,
+  ToolCallPart as AIToolCallPart,
+  ToolResultPart,
+  ToolSet,
+  TypedToolCall,
+} from "ai";
 import { SystemInfo } from "../system-info/system-info.ts";
 import type { FactsStorage } from "../core/types.ts";
 import {
@@ -18,13 +26,26 @@ import {
   beforeToolCallHandler,
   beforeToolCallsThoughts,
   MainAgentExecutor,
+  ToolInput,
   ToolName,
 } from "./main-agent-executor.ts";
+
+// Helper types for stream parts
+type TextDeltaPart = { type: "text-delta"; text: string };
+type ToolCallStreamPart = {
+  type: "tool-call";
+  toolName: ToolName;
+  toolCallId: string;
+  input: ToolInput;
+};
+type FinishPart = { type: "finish"; finishReason: FinishReason };
 
 export interface MainAgent {
   processUserQuery(input: {
     userQuery: string;
     correlationId?: string;
+    /** Streaming callback for incremental assistant text */
+    onTextDelta?: (delta: string) => void;
     beforeCall?: beforeToolCallHandler;
     afterCall?: afterToolCallHandler;
   }): Promise<{ text: string }>;
@@ -39,6 +60,8 @@ export interface MainAgentParams {
   factsStorage: FactsStorage;
   dataDir: string;
   basePrompt?: string;
+  /** Maximum number of agent steps per user query (default: 10) */
+  maxSteps?: number;
 }
 
 /**
@@ -51,10 +74,12 @@ export interface MainAgentParams {
 export class MainAgent implements MainAgent {
   private readonly params: MainAgentParams;
   private readonly executor: MainAgentExecutor;
+  private readonly maxSteps: number;
 
   constructor(params: MainAgentParams) {
     this.params = params;
     this.executor = params.executor;
+    this.maxSteps = params.maxSteps ?? 10;
   }
 
   /**
@@ -67,12 +92,14 @@ export class MainAgent implements MainAgent {
   async processUserQuery({
     userQuery,
     correlationId,
+    onTextDelta,
     onThoughts,
     beforeCall,
     afterCall,
   }: {
     userQuery: string;
     correlationId?: string;
+    onTextDelta?: (delta: string) => void;
     onThoughts?: beforeToolCallsThoughts;
     beforeCall?: beforeToolCallHandler;
     afterCall?: afterToolCallHandler;
@@ -90,20 +117,19 @@ export class MainAgent implements MainAgent {
     });
 
     try {
-      const { responseText, finishReason, toolCallsCount } = await this.loop(
+      const { responseText, finishReason, stepsCount } = await this.loop(
         userQuery,
         onThoughts,
         beforeCall,
         afterCall,
+        onTextDelta,
       );
 
       console.log(">>> loop", {
         finishReason,
-        toolCallsCount,
+        stepsCount,
         responseText,
       });
-
-      this.params.conversationHistory.append({ role: "assistant", content: responseText });
 
       log({
         mod: "agent",
@@ -129,118 +155,174 @@ export class MainAgent implements MainAgent {
     onThoughts?: beforeToolCallsThoughts,
     beforeCall?: beforeToolCallHandler,
     afterCall?: afterToolCallHandler,
+    onTextDelta?: (delta: string) => void,
   ): Promise<{
     responseText: string;
-    finishReason: string;
-    toolCallsCount: number;
+    finishReason: FinishReason;
+    stepsCount: number;
   }> {
     this.params.conversationHistory.append({ role: "user", content: userQuery });
 
     let text = "";
     let stepsCount = 0;
-    let finishReason = "";
-    while (stepsCount <= 10) {
-      const res = await this.step(onThoughts, beforeCall, afterCall);
+    let finishReason: FinishReason = "unknown";
+    while (stepsCount < this.maxSteps) {
+      const res = await this.stepStream(onThoughts, beforeCall, afterCall, onTextDelta);
       if (!res) {
         throw new Error("No result from step");
       }
-      text = res.text;
+      // accumulate visible assistant text across steps, adding a newline between steps
+      text += (text && res.text ? "\n" : "") + res.text;
       finishReason = res.finishReason;
+      stepsCount++;
       if (finishReason === "stop") {
         break;
       }
-      stepsCount++;
     }
     return {
       responseText: text,
-      finishReason: finishReason,
-      toolCallsCount: stepsCount,
+      finishReason,
+      stepsCount,
     };
   }
 
   /**
-   * - `stop`: model generated stop sequence
-   * - `length`: model generated maximum number of tokens
-   * - `content-filter`: content filter violation stopped the model
-   * - `tool-calls`: model triggered tool calls
-   * - `error`: model stopped because of an error
-   * - `other`: model stopped for other reasons
-   * - `unknown`: the model has not transmitted a finish reason
    *
    * @param onThoughts
    * @param beforeCall
    * @param afterCall
    * @returns
    */
-  private async step(
+
+  private async stepStream(
     onThoughts?: beforeToolCallsThoughts,
     beforeCall?: beforeToolCallHandler,
     afterCall?: afterToolCallHandler,
-  ): Promise<{
-    text: string;
-    finishReason: FinishReason;
-  } | undefined> {
-    let result: GenerateTextResult<ToolSet, unknown>;
+    onTextDelta?: (delta: string) => void,
+  ): Promise<
+    {
+      text: string;
+      finishReason: FinishReason;
+    } | undefined
+  > {
     console.log(">>> messages", this.params.conversationHistory.getRecentMessages(10000));
+
+    // Stream a single step of the agent (tool orchestration is handled across loop iterations)
+    const stream = streamText<ToolSet, unknown>({
+      model: this.params.llmModel,
+      temperature: this.params.llmTemperature,
+      system: await this.generateSystemPrompt(),
+      messages: this.params.conversationHistory.getRecentMessages(10000),
+      tools: this.executor.getTools(),
+      stopWhen: [stepCountIs(1)],
+    });
+
+    let text = "";
+    let finishReason: FinishReason = "unknown";
+    const pendingToolCalls: Array<{ toolCallId: string; toolName: ToolName; input: ToolInput }> =
+      [];
+
     try {
-      result = await generateText({
-        model: this.params.llmModel,
-        temperature: this.params.llmTemperature,
-        system: await this.generateSystemPrompt(),
-        messages: this.params.conversationHistory.getRecentMessages(10000),
-        tools: this.executor.getTools(),
-        stopWhen: [stepCountIs(1)],
-        prepareStep: ({ model, stepNumber, steps, messages }) => {
-          console.log(">>> prepareStep", { model, stepNumber, steps, messages });
-          return {};
-        },
-      });
+      for await (const part of stream.fullStream) {
+        switch (part.type) {
+          case "text-delta": {
+            const p = part as TextDeltaPart;
+            text += p.text;
+            try {
+              onTextDelta?.(p.text);
+            } catch (e) {
+              console.debug("onTextDelta callback error", e);
+            }
+            break;
+          }
+          case "tool-call": {
+            const tc = part as ToolCallStreamPart;
+            const toolCallForHook: TypedToolCall<ToolSet> = {
+              type: "tool-call",
+              toolCallId: tc.toolCallId,
+              toolName: tc.toolName as unknown as string,
+              input: tc.input,
+            };
+            const toolCallForPending = {
+              toolCallId: tc.toolCallId,
+              toolName: tc.toolName,
+              input: tc.input,
+            };
+            pendingToolCalls.push(toolCallForPending);
+            try {
+              beforeCall?.(toolCallForHook);
+            } catch (e) {
+              console.debug("beforeCall hook error", e);
+            }
+            break;
+          }
+          case "finish": {
+            const f = part as FinishPart;
+            finishReason = f.finishReason;
+            break;
+          }
+          default:
+            // ignore other stream parts (start, tool-call-delta, metadata, etc.)
+            break;
+        }
+      }
     } catch (error) {
-      console.error(">>> generateText error", error);
+      console.error(">>> streamText error", error);
       throw error;
     }
 
-    const [{ text, toolCalls, finishReason }] = result.steps;
+    // Append assistant message with both the streamed text and the tool-call parts (if any)
+    const assistantContent: Array<TextPart | AIToolCallPart> = [];
+    if (text) assistantContent.push({ type: "text", text });
+    for (const tc of pendingToolCalls) {
+      const toolCallMsgPart: AIToolCallPart = {
+        type: "tool-call",
+        toolCallId: tc.toolCallId,
+        toolName: tc.toolName as unknown as string,
+        input: tc.input,
+      };
+      assistantContent.push(toolCallMsgPart);
+    }
+    this.params.conversationHistory.append({ role: "assistant", content: assistantContent });
 
-    result.response.messages.forEach((message) => {
-      this.params.conversationHistory.append(message);
-    });
+    if (finishReason === "tool-calls" && pendingToolCalls.length > 0) {
+      console.log(">>> finishReason: tool-calls", { finishReason, pendingToolCalls });
+      // Expose the model's thoughts before executing tools
+      try {
+        onThoughts?.(text);
+      } catch (e) {
+        console.debug("onThoughts callback error", e);
+      }
+
+      const toolResultsParts: ToolResultPart[] = [];
+      for (const tc of pendingToolCalls) {
+        const toolOutput = await this.executor.executeTool(tc.toolName, tc.input, text);
+        toolResultsParts.push({
+          type: "tool-result",
+          toolCallId: tc.toolCallId,
+          toolName: tc.toolName as unknown as string,
+          output: toolOutput,
+        });
+        try {
+          afterCall?.(toolOutput);
+        } catch (e) {
+          console.debug("afterCall hook error", e);
+        }
+        console.log(">>> after tools call", {
+          toolName: tc.toolName,
+          toolInput: tc.input,
+          toolOutput,
+        });
+      }
+
+      // Append a single tool message containing all results for this step
+      this.params.conversationHistory.append({ role: "tool", content: toolResultsParts });
+    }
 
     switch (finishReason) {
-      case "stop": {
-        console.log(">>> finishReason: stop", { finishReason, text, toolCalls });
-        return {
-          text,
-          finishReason,
-        };
-      }
-      case "tool-calls": {
-        console.log(">>> finishReason: tool-calls", { finishReason, text, toolCalls });
-        onThoughts?.(text);
-        for (const toolCall of toolCalls) {
-          const toolName = toolCall.toolName as ToolName;
-          const toolInput = toolCall.input;
-          beforeCall?.(toolCall);
-          const toolOutput = await this.executor.executeTool(toolName, toolInput, text);
-          this.params.conversationHistory.append({
-            role: "tool",
-            content: [
-              {
-                type: "tool-result",
-                toolCallId: toolCall.toolCallId,
-                toolName: toolName,
-                output: toolOutput,
-              },
-            ],
-          });
-          afterCall?.(toolOutput);
-          console.log(">>> after tools call", { toolName, toolInput, toolOutput });
-        }
-        return {
-          text,
-          finishReason,
-        };
-      }
+      case "stop":
+      case "tool-calls":
+        return { text, finishReason };
       case "length":
         throw new Error("Model generated maximum number of tokens");
       case "content-filter":
@@ -250,6 +332,7 @@ export class MainAgent implements MainAgent {
       case "other":
         throw new Error("Model stopped for other reasons");
       case "unknown":
+      default:
         throw new Error("Model has not transmitted a finish reason");
     }
   }
