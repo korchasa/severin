@@ -20,7 +20,6 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createDiagnoseTask } from "./agent/diagnose-task.ts";
 import { createTerminalTool } from "./agent/tools/terminal.ts";
 import { createFactsStorage } from "./agent/facts/storage.ts";
-import { MainAgentExecutor } from "./agent/main-agent-executor.ts";
 // LLM adapter encapsulated within agent
 
 /**
@@ -70,12 +69,11 @@ export async function startAgent(): Promise<void> {
   const llmProvider = createOpenAI({ apiKey: config.agent.llm.apiKey });
   const llmModel = llmProvider(config.agent.llm.model);
   const conversationHistory = new ConversationHistory();
-  const mainAgentExecutor = new MainAgentExecutor(terminalTool, factsStorage);
   const mainAgent = new MainAgent({
     llmModel,
     llmTemperature: config.agent.llm.temperature,
     basePrompt: config.agent.llm.basePrompt,
-    executor: mainAgentExecutor,
+    terminalTool,
     conversationHistory,
     systemInfo,
     factsStorage,

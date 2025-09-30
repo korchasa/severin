@@ -8,28 +8,34 @@
 
 import { ConversationHistory } from "./history/service.ts";
 import { log } from "../utils/logger.ts";
-import type { LanguageModelV2 } from "@ai-sdk/provider";
+import type { LanguageModelV2, LanguageModelV2ToolResultOutput } from "@ai-sdk/provider";
 import {
   FinishReason,
   stepCountIs,
   streamText,
   TextPart,
+  Tool,
   ToolCallPart as AIToolCallPart,
   ToolResultPart,
   ToolSet,
   TypedToolCall,
+  TypedToolResult,
 } from "ai";
 import { SystemInfo } from "../system-info/system-info.ts";
 import type { FactsStorage } from "../core/types.ts";
 import {
-  afterToolCallHandler,
-  beforeToolCallHandler,
-  beforeToolCallsThoughts,
-  MainAgentExecutor,
+  createAddFactTool,
+  createDeleteFactTool,
+  createUpdateFactTool,
   ToolInput,
   ToolName,
-} from "./main-agent-executor.ts";
+} from "./tools/index.ts";
 
+// Helper types for stream parts
+export type deltaTextHandler = (delta: string) => void;
+export type beforeCallThoughts = (thoughts: string) => void;
+export type beforeCallHandler = (call: TypedToolCall<ToolSet>) => void;
+export type afterCallHandler = (result: TypedToolResult<ToolSet>) => void;
 // Helper types for stream parts
 type TextDeltaPart = { type: "text-delta"; text: string };
 type ToolCallStreamPart = {
@@ -40,26 +46,32 @@ type ToolCallStreamPart = {
 };
 type FinishPart = { type: "finish"; finishReason: FinishReason };
 
-export interface MainAgent {
+export interface MainAgentAPI {
   processUserQuery(input: {
     userQuery: string;
     correlationId?: string;
     /** Streaming callback for incremental assistant text */
     onTextDelta?: (delta: string) => void;
-    beforeCall?: beforeToolCallHandler;
-    afterCall?: afterToolCallHandler;
+    /** Model's visible "thoughts" text right before executing tools (not added to chat) */
+    onThoughts?: beforeCallThoughts;
+    beforeCall?: beforeCallHandler;
+    afterCall?: afterCallHandler;
   }): Promise<{ text: string }>;
 }
 
 export interface MainAgentParams {
   llmModel: LanguageModelV2;
   llmTemperature: number;
-  executor: MainAgentExecutor;
   conversationHistory: ConversationHistory;
   systemInfo: SystemInfo;
   factsStorage: FactsStorage;
+  terminalTool: Tool;
   dataDir: string;
   basePrompt?: string;
+  /** If true, append assistant message with tool-call immediately on event */
+  emitAssistantOnToolCall?: boolean;
+  /** Maximum number of recent messages to include in model context (default: 200) */
+  maxHistoryMessages?: number;
   /** Maximum number of agent steps per user query (default: 10) */
   maxSteps?: number;
 }
@@ -71,15 +83,17 @@ export interface MainAgentParams {
  * Encapsulates LLM model, conversation history, and tools
  * to provide clean public API for user queries.
  */
-export class MainAgent implements MainAgent {
+export class MainAgent implements MainAgentAPI {
   private readonly params: MainAgentParams;
-  private readonly executor: MainAgentExecutor;
   private readonly maxSteps: number;
+  private readonly historyWindow: number;
+  private readonly emitAssistantOnToolCall: boolean;
 
   constructor(params: MainAgentParams) {
     this.params = params;
-    this.executor = params.executor;
     this.maxSteps = params.maxSteps ?? 10;
+    this.historyWindow = params.maxHistoryMessages ?? 200;
+    this.emitAssistantOnToolCall = params.emitAssistantOnToolCall ?? false;
   }
 
   /**
@@ -93,16 +107,16 @@ export class MainAgent implements MainAgent {
     userQuery,
     correlationId,
     onTextDelta,
-    onThoughts,
-    beforeCall,
-    afterCall,
+    onThoughts: onCallThoughts,
+    beforeCall: onBeforeCall,
+    afterCall: onAfterCall,
   }: {
     userQuery: string;
     correlationId?: string;
     onTextDelta?: (delta: string) => void;
-    onThoughts?: beforeToolCallsThoughts;
-    beforeCall?: beforeToolCallHandler;
-    afterCall?: afterToolCallHandler;
+    onThoughts?: beforeCallThoughts;
+    beforeCall?: beforeCallHandler;
+    afterCall?: afterCallHandler;
   }): Promise<{ text: string }> {
     // Validate input
     if (!userQuery || userQuery.trim().length < 2) {
@@ -119,10 +133,10 @@ export class MainAgent implements MainAgent {
     try {
       const { responseText, finishReason, stepsCount } = await this.loop(
         userQuery,
-        onThoughts,
-        beforeCall,
-        afterCall,
         onTextDelta,
+        onCallThoughts,
+        onBeforeCall,
+        onAfterCall,
       );
 
       console.log(">>> loop", {
@@ -152,42 +166,56 @@ export class MainAgent implements MainAgent {
 
   private async loop(
     userQuery: string,
-    onThoughts?: beforeToolCallsThoughts,
-    beforeCall?: beforeToolCallHandler,
-    afterCall?: afterToolCallHandler,
     onTextDelta?: (delta: string) => void,
+    onCallThoughts?: beforeCallThoughts,
+    onBeforeCall?: beforeCallHandler,
+    onAfterCall?: afterCallHandler,
   ): Promise<{
     responseText: string;
     finishReason: FinishReason;
     stepsCount: number;
   }> {
-    this.params.conversationHistory.append({ role: "user", content: userQuery });
+    this.params.conversationHistory.append({
+      role: "user",
+      content: userQuery,
+    });
 
-    let text = "";
+    let visibleText = "";
     let stepsCount = 0;
     let finishReason: FinishReason = "unknown";
+
     while (stepsCount < this.maxSteps) {
-      const res = await this.stepStream(onThoughts, beforeCall, afterCall, onTextDelta);
+      const res = await this.stepStream(
+        onTextDelta,
+        onCallThoughts,
+        onBeforeCall,
+        onAfterCall,
+      );
       if (!res) {
         throw new Error("No result from step");
       }
-      // accumulate visible assistant text across steps, adding a newline between steps
-      text += (text && res.text ? "\n" : "") + res.text;
+
+      // Only accumulate final, user-visible assistant text (exclude "thoughts" before tool calls)
+      if (res.finishReason === "stop" && res.assistantText) {
+        visibleText += (visibleText && res.assistantText ? "\n" : "") + res.assistantText;
+      }
+
       finishReason = res.finishReason;
       stepsCount++;
+
       if (finishReason === "stop") {
         break;
       }
     }
+
     return {
-      responseText: text,
+      responseText: visibleText,
       finishReason,
       stepsCount,
     };
   }
 
   /**
-   *
    * @param onThoughts
    * @param beforeCall
    * @param afterCall
@@ -195,39 +223,60 @@ export class MainAgent implements MainAgent {
    */
 
   private async stepStream(
-    onThoughts?: beforeToolCallsThoughts,
-    beforeCall?: beforeToolCallHandler,
-    afterCall?: afterToolCallHandler,
-    onTextDelta?: (delta: string) => void,
+    onTextDelta?: deltaTextHandler,
+    onCallThoughts?: beforeCallThoughts,
+    onBeforeCall?: beforeCallHandler,
+    onAfterCall?: afterCallHandler,
   ): Promise<
-    {
-      text: string;
+    | {
+      assistantText: string; // visible, user-facing text
       finishReason: FinishReason;
-    } | undefined
+    }
+    | undefined
   > {
-    console.log(">>> messages", this.params.conversationHistory.getRecentMessages(10000));
+    console.log(
+      ">>> messages",
+      this.params.conversationHistory.getRecentMessages(this.historyWindow),
+    );
 
     // Stream a single step of the agent (tool orchestration is handled across loop iterations)
     const stream = streamText<ToolSet, unknown>({
       model: this.params.llmModel,
       temperature: this.params.llmTemperature,
       system: await this.generateSystemPrompt(),
-      messages: this.params.conversationHistory.getRecentMessages(10000),
-      tools: this.executor.getTools(),
-      stopWhen: [stepCountIs(1)],
+      messages: this.params.conversationHistory.getRecentMessages(
+        this.historyWindow,
+      ),
+      tools: {
+        terminal: this.params.terminalTool,
+        add_fact: createAddFactTool(this.params.factsStorage),
+        update_fact: createUpdateFactTool(this.params.factsStorage),
+        delete_fact: createDeleteFactTool(this.params.factsStorage),
+      },
+      stopWhen: [stepCountIs(10)],
     });
 
-    let text = "";
+    let preToolBuffer = "";
+    let visibleBuffer = "";
+    let seenTool = false;
     let finishReason: FinishReason = "unknown";
-    const pendingToolCalls: Array<{ toolCallId: string; toolName: ToolName; input: ToolInput }> =
-      [];
+    const pendingToolCalls: Array<{
+      toolCallId: string;
+      toolName: ToolName;
+      input: ToolInput;
+    }> = [];
+    const emittedToolCallIds = new Set<string>();
 
     try {
       for await (const part of stream.fullStream) {
         switch (part.type) {
           case "text-delta": {
             const p = part as TextDeltaPart;
-            text += p.text;
+            if (!seenTool) {
+              preToolBuffer += p.text;
+            } else {
+              visibleBuffer += p.text;
+            }
             try {
               onTextDelta?.(p.text);
             } catch (e) {
@@ -237,6 +286,17 @@ export class MainAgent implements MainAgent {
           }
           case "tool-call": {
             const tc = part as ToolCallStreamPart;
+
+            // Emit "thoughts" exactly at the first tool-call (text before tools)
+            if (!seenTool && preToolBuffer) {
+              try {
+                onCallThoughts?.(preToolBuffer);
+              } catch (e) {
+                console.debug("onThoughts callback error", e);
+              }
+            }
+            seenTool = true;
+
             const toolCallForHook: TypedToolCall<ToolSet> = {
               type: "tool-call",
               toolCallId: tc.toolCallId,
@@ -250,10 +310,59 @@ export class MainAgent implements MainAgent {
             };
             pendingToolCalls.push(toolCallForPending);
             try {
-              beforeCall?.(toolCallForHook);
+              onBeforeCall?.(toolCallForHook);
             } catch (e) {
               console.debug("beforeCall hook error", e);
             }
+            // Optionally emit assistant message with the tool-call right now
+            if (this.emitAssistantOnToolCall) {
+              const toolCallMsgPart: AIToolCallPart = {
+                type: "tool-call",
+                toolCallId: tc.toolCallId,
+                toolName: tc.toolName as unknown as string,
+                input: tc.input,
+              };
+              this.params.conversationHistory.append({
+                role: "assistant",
+                content: [toolCallMsgPart],
+              });
+              emittedToolCallIds.add(tc.toolCallId);
+            }
+            break;
+          }
+          case "tool-result": {
+            // Auto-executed tool result from SDK: forward to afterCall and append to history
+            const tr = part as unknown as {
+              type: "tool-result";
+              toolCallId: string;
+              result: unknown;
+              toolName?: string;
+            };
+            const pending = pendingToolCalls.find(
+              (p) => p.toolCallId === tr.toolCallId,
+            );
+            const resolvedToolName = tr.toolName ?? pending?.toolName ?? "";
+            const toolName: string = String(resolvedToolName);
+
+            const toolOutput: LanguageModelV2ToolResultOutput = tr
+              .result as LanguageModelV2ToolResultOutput;
+
+            try {
+              onAfterCall?.(tr.result as TypedToolResult<ToolSet>);
+            } catch (e) {
+              console.debug("afterCall hook error", e);
+            }
+
+            const toolMsgPart: ToolResultPart = {
+              type: "tool-result",
+              toolCallId: tr.toolCallId,
+              toolName,
+              output: toolOutput,
+            };
+            this.params.conversationHistory.append({
+              role: "tool",
+              content: [toolMsgPart],
+            });
             break;
           }
           case "finish": {
@@ -271,69 +380,92 @@ export class MainAgent implements MainAgent {
       throw error;
     }
 
-    // Append assistant message with both the streamed text and the tool-call parts (if any)
-    const assistantContent: Array<TextPart | AIToolCallPart> = [];
-    if (text) assistantContent.push({ type: "text", text });
-    for (const tc of pendingToolCalls) {
-      const toolCallMsgPart: AIToolCallPart = {
-        type: "tool-call",
-        toolCallId: tc.toolCallId,
-        toolName: tc.toolName as unknown as string,
-        input: tc.input,
-      };
-      assistantContent.push(toolCallMsgPart);
-    }
-    this.params.conversationHistory.append({ role: "assistant", content: assistantContent });
-
-    if (finishReason === "tool-calls" && pendingToolCalls.length > 0) {
-      console.log(">>> finishReason: tool-calls", { finishReason, pendingToolCalls });
-      // Expose the model's thoughts before executing tools
+    // Fallback: if no explicit finish part was received, resolve the stream result
+    if (finishReason === "unknown") {
       try {
-        onThoughts?.(text);
-      } catch (e) {
-        console.debug("onThoughts callback error", e);
+        const finalResult: unknown = await stream;
+        if (typeof finalResult === "object" && finalResult !== null) {
+          const fr = (finalResult as { finishReason?: FinishReason }).finishReason;
+          if (fr) finishReason = fr;
+          const maybeText = (finalResult as { text?: string }).text;
+          if (
+            typeof maybeText === "string" &&
+            !seenTool &&
+            preToolBuffer.length === 0 &&
+            visibleBuffer.length === 0
+          ) {
+            // If no tool was seen and buffers are empty, adopt final text as pre-tool text
+            preToolBuffer = maybeText;
+          }
+        }
+      } catch {
+        // ignore; will treat as best-effort below
       }
 
-      const toolResultsParts: ToolResultPart[] = [];
+      // If still unknown, infer based on whether there are pending tool calls
+      if (finishReason === "unknown") {
+        finishReason = pendingToolCalls.length > 0 ? "tool-calls" : "stop";
+      }
+    }
+
+    // Build the assistant message parts for conversation history.
+    // Visible text is the text after tools (if any), or pre-tool text if no tools were called.
+    const assistantContent: Array<TextPart | AIToolCallPart> = [];
+
+    if (
+      finishReason === "stop" ||
+      finishReason === "length" ||
+      finishReason === "content-filter"
+    ) {
+      const visible = seenTool ? visibleBuffer : preToolBuffer;
+      if (visible) {
+        assistantContent.push({ type: "text", text: visible });
+      }
+    }
+
+    if (!this.emitAssistantOnToolCall) {
       for (const tc of pendingToolCalls) {
-        const toolOutput = await this.executor.executeTool(tc.toolName, tc.input, text);
-        toolResultsParts.push({
-          type: "tool-result",
+        const toolCallMsgPart: AIToolCallPart = {
+          type: "tool-call",
           toolCallId: tc.toolCallId,
           toolName: tc.toolName as unknown as string,
-          output: toolOutput,
-        });
-        try {
-          afterCall?.(toolOutput);
-        } catch (e) {
-          console.debug("afterCall hook error", e);
-        }
-        console.log(">>> after tools call", {
-          toolName: tc.toolName,
-          toolInput: tc.input,
-          toolOutput,
-        });
+          input: tc.input,
+        };
+        assistantContent.push(toolCallMsgPart);
       }
+    }
 
-      // Append a single tool message containing all results for this step
-      this.params.conversationHistory.append({ role: "tool", content: toolResultsParts });
+    if (assistantContent.length > 0) {
+      this.params.conversationHistory.append({
+        role: "assistant",
+        content: assistantContent,
+      });
     }
 
     switch (finishReason) {
-      case "stop":
+      case "stop": {
+        const visible = seenTool ? visibleBuffer : preToolBuffer;
+        return { assistantText: visible, finishReason };
+      }
       case "tool-calls":
-        return { text, finishReason };
-      case "length":
-        throw new Error("Model generated maximum number of tokens");
-      case "content-filter":
-        throw new Error("Content filter violation stopped the model");
+        return { assistantText: "", finishReason };
+      case "length": {
+        const visible = seenTool ? visibleBuffer : preToolBuffer;
+        return { assistantText: visible, finishReason };
+      }
+      case "content-filter": {
+        const visible = seenTool ? visibleBuffer : preToolBuffer;
+        return { assistantText: visible, finishReason };
+      }
       case "error":
         throw new Error("Model stopped because of an error");
       case "other":
         throw new Error("Model stopped for other reasons");
-      case "unknown":
-      default:
-        throw new Error("Model has not transmitted a finish reason");
+      // For unknown or any other (default), treat as "stop" (do not throw)
+      default: {
+        const visible = seenTool ? visibleBuffer : preToolBuffer;
+        return { assistantText: visible, finishReason };
+      }
     }
   }
 
