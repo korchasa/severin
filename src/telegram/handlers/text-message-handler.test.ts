@@ -44,9 +44,6 @@ const mockConfig: Config = {
   },
 };
 
-// Mock LLM response for reference
-const _mockLLMResponse = "Mock LLM response";
-
 Deno.test("text message handler: ignores very short messages", async () => {
   const handler = createTextMessageHandler(mockAgent, mockConfig);
 
@@ -103,7 +100,6 @@ Deno.test("text message handler: does not send empty LLM responses", async () =>
     },
   ) => {
     const text = ctx.message?.text?.trim();
-    const _userId = ctx.from?.id;
 
     // Skip validation checks for this test
     if (!text || text.length < 2 || text.startsWith("/")) {

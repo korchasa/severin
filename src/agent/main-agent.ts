@@ -19,7 +19,7 @@ import {
   TypedToolResult,
 } from "ai";
 import { SystemInfo } from "../system-info/system-info.ts";
-import type { Fact, FactsStorage } from "./facts/types.ts";
+import type { FactsStorage } from "./facts/types.ts";
 import {
   createAddFactTool,
   createDeleteFactTool,
@@ -42,22 +42,6 @@ type ToolCallStreamPart = {
   input: ToolInput;
 };
 type FinishPart = { type: "finish"; finishReason: FinishReason };
-
-type MainAgentToolSet = {
-  terminal: Tool;
-  add_fact: Tool<
-    { content: string },
-    { success: true; fact: Fact } | { success: false; error: string }
-  >;
-  update_fact: Tool<
-    { id: string; content: string },
-    { success: true; fact: Fact } | { success: false; error: string; id: string }
-  >;
-  delete_fact: Tool<
-    { id: string },
-    { success: true; id: string } | { success: false; error: string; id: string }
-  >;
-};
 
 export interface MainAgentAPI {
   processUserQuery(input: {
@@ -176,12 +160,6 @@ export class MainAgent implements MainAgentAPI {
         toolName?: string;
       };
       type AgentStreamPart = TextDeltaPart | ToolCallStreamPart | FinishPart | ToolResultStreamPart;
-      type Thenable<T> = {
-        then: (
-          onfulfilled: (value: T) => unknown,
-          onrejected?: (reason: unknown) => unknown,
-        ) => unknown;
-      };
 
       let preToolBuffer = "";
       let visibleBuffer = "";

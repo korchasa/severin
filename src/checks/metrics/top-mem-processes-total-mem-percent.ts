@@ -10,7 +10,6 @@ import { sh } from "../../utils/sh.ts";
  */
 export class TopMemProcessesCollector {
   async collect(): Promise<MetricValue[]> {
-    const _startTime = performance.now();
     const ts = new Date().toISOString();
 
     try {

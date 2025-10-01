@@ -147,8 +147,3 @@ export function createTextMessageHandler(
     }
   };
 }
-
-interface messageParts {
-  callThoughts: string;
-  toTelegram: (text: string) => void;
-}
