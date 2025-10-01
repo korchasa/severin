@@ -14,7 +14,6 @@ import {
   FinishReason,
   ModelMessage,
   stepCountIs,
-  TextPart,
   Tool,
   ToolCallPart as AIToolCallPart,
   ToolResultPart,
@@ -77,6 +76,7 @@ export interface MainAgentAPI {
 }
 
 export interface MainAgentParams {
+  basePrompt: string | undefined;
   llmModel: LanguageModelV2;
   llmTemperature: number;
   conversationHistory: ConversationHistory;
@@ -84,9 +84,6 @@ export interface MainAgentParams {
   factsStorage: FactsStorage;
   terminalTool: Tool;
   dataDir: string;
-  basePrompt?: string;
-  /** If true, append assistant message with tool-call immediately on event */
-  emitAssistantOnToolCall?: boolean;
   /** Maximum number of recent messages to include in model context (default: 200) */
   maxHistoryMessages?: number;
   /** Maximum number of agent steps per user query (default: 10) */
@@ -101,30 +98,23 @@ export interface MainAgentParams {
  * to provide clean public API for user queries.
  */
 export class MainAgent implements MainAgentAPI {
-  private readonly params: MainAgentParams;
+  private readonly llmModel: LanguageModelV2;
+  private readonly llmTemperature: number;
+  private readonly conversationHistory: ConversationHistory;
+  private readonly systemInfo: SystemInfo;
+  private readonly factsStorage: FactsStorage;
+  private readonly terminalTool: Tool;
+  private readonly dataDir: string;
   private readonly maxSteps: number;
-  private readonly historyWindow: number;
-  private readonly emitAssistantOnToolCall: boolean;
-  // Refined agent type
-  private readonly agent: Agent<MainAgentToolSet, never, never>;
-
   constructor(params: MainAgentParams) {
-    this.params = params;
+    this.llmModel = params.llmModel;
+    this.llmTemperature = params.llmTemperature;
+    this.conversationHistory = params.conversationHistory;
+    this.systemInfo = params.systemInfo;
+    this.factsStorage = params.factsStorage;
+    this.terminalTool = params.terminalTool;
+    this.dataDir = params.dataDir;
     this.maxSteps = params.maxSteps ?? 10;
-    this.historyWindow = params.maxHistoryMessages ?? 200;
-    this.emitAssistantOnToolCall = params.emitAssistantOnToolCall ?? false;
-    // Agent instantiation (remove system property)
-    this.agent = new Agent({
-      model: this.params.llmModel,
-      temperature: this.params.llmTemperature,
-      tools: {
-        terminal: this.params.terminalTool,
-        add_fact: createAddFactTool(this.params.factsStorage),
-        update_fact: createUpdateFactTool(this.params.factsStorage),
-        delete_fact: createDeleteFactTool(this.params.factsStorage),
-      },
-      stopWhen: [stepCountIs(this.maxSteps)],
-    });
   }
 
   /**
@@ -153,12 +143,70 @@ export class MainAgent implements MainAgentAPI {
     if (!userQuery || userQuery.trim().length < 2) {
       throw new Error("Query text must be at least 2 characters long");
     }
-
     log({
       mod: "agent",
       event: "process_user_query_start",
+      userQuery,
       correlationId,
       textLength: userQuery.length,
+    });
+
+    this.conversationHistory.append({ role: "user", content: userQuery });
+
+    const basePrompt = await this.generateSystemPrompt();
+
+    // Agent instantiation (remove system property)
+    const agent = new Agent({
+      model: this.llmModel,
+      system: basePrompt,
+      temperature: this.llmTemperature,
+      tools: {
+        terminal: this.terminalTool,
+        add_fact: createAddFactTool(this.factsStorage),
+        update_fact: createUpdateFactTool(this.factsStorage),
+        delete_fact: createDeleteFactTool(this.factsStorage),
+      },
+      stopWhen: [stepCountIs(this.maxSteps)],
+      onStepFinish: (step) => {
+        // Record assistant message with tool calls (if any)
+        if (step.toolCalls.length > 0) {
+          const toolCallContent: AIToolCallPart[] = [];
+          for (const tc of step.toolCalls) {
+            toolCallContent.push({
+              type: "tool-call",
+              toolCallId: tc.toolCallId,
+              toolName: tc.toolName as unknown as string,
+              input: tc.input,
+            });
+          }
+          this.conversationHistory.append({
+            role: "assistant",
+            content: toolCallContent,
+          });
+        }
+
+        // Record all tool results
+        for (const tr of step.toolResults) {
+          const toolMsgPart: ToolResultPart = {
+            type: "tool-result",
+            toolCallId: tr.toolCallId,
+            toolName: tr.toolName,
+            output: tr.output,
+          };
+          this.conversationHistory.append({
+            role: "tool",
+            content: [toolMsgPart],
+          });
+        }
+
+        // Record assistant message with text response (if any)
+        if (step.text) {
+          this.conversationHistory.append({
+            role: "assistant",
+            content: [{ type: "text", text: step.text }],
+          });
+        }
+      },
     });
 
     try {
@@ -166,11 +214,11 @@ export class MainAgent implements MainAgentAPI {
       const systemPrompt = await this.generateSystemPrompt();
       const messages: ModelMessage[] = [
         { role: "system", content: systemPrompt },
-        ...this.params.conversationHistory.getRecentMessages(this.historyWindow),
+        ...this.conversationHistory.getRecentMessages(),
       ];
 
       // Stream agent response
-      const stream = this.agent.stream({ messages });
+      const stream = agent.stream({ messages });
 
       // Helper types for strict typing
       type ToolResultStreamPart = {
@@ -195,6 +243,11 @@ export class MainAgent implements MainAgentAPI {
         toolCallId: string;
         toolName: ToolName;
         input: ToolInput;
+      }> = [];
+      const completedToolResults: Array<{
+        toolCallId: string;
+        toolName: string;
+        output: LanguageModelV2ToolResultOutput;
       }> = [];
 
       // Use strictly typed fullStream
@@ -247,23 +300,11 @@ export class MainAgent implements MainAgentAPI {
               } catch (e) {
                 console.debug("beforeCall hook error", e);
               }
-              // Optionally emit assistant message with the tool-call right now
-              if (this.emitAssistantOnToolCall) {
-                const toolCallMsgPart: AIToolCallPart = {
-                  type: "tool-call",
-                  toolCallId: tc.toolCallId,
-                  toolName: tc.toolName as unknown as string,
-                  input: tc.input,
-                };
-                this.params.conversationHistory.append({
-                  role: "assistant",
-                  content: [toolCallMsgPart],
-                });
-              }
+              // Tool calls will be recorded after the full response is complete
               break;
             }
             case "tool-result": {
-              // Auto-executed tool result from SDK: forward to afterCall and append to history
+              // Auto-executed tool result from SDK: forward to afterCall and store for history
               const tr = part as unknown as {
                 type: "tool-result";
                 toolCallId: string;
@@ -279,22 +320,18 @@ export class MainAgent implements MainAgentAPI {
               const toolOutput: LanguageModelV2ToolResultOutput = tr
                 .result as LanguageModelV2ToolResultOutput;
 
+              // Store tool result for later recording in history
+              completedToolResults.push({
+                toolCallId: tr.toolCallId,
+                toolName,
+                output: toolOutput,
+              });
+
               try {
                 onAfterCall?.(tr.result as TypedToolResult<ToolSet>);
               } catch (e) {
                 console.debug("afterCall hook error", e);
               }
-
-              const toolMsgPart: ToolResultPart = {
-                type: "tool-result",
-                toolCallId: tr.toolCallId,
-                toolName,
-                output: toolOutput,
-              };
-              this.params.conversationHistory.append({
-                role: "tool",
-                content: [toolMsgPart],
-              });
               break;
             }
             case "finish": {
@@ -312,68 +349,9 @@ export class MainAgent implements MainAgentAPI {
         throw error;
       }
 
-      // Fallback: if no explicit finish part was received, resolve the stream result
-      if (finishReason === "unknown") {
-        try {
-          const finalResult: unknown =
-            await (stream as unknown as Thenable<{ finishReason?: FinishReason; text?: string }>);
-          if (typeof finalResult === "object" && finalResult !== null) {
-            const fr = (finalResult as { finishReason?: FinishReason }).finishReason;
-            if (fr) finishReason = fr;
-            const maybeText = (finalResult as { text?: string }).text;
-            if (
-              typeof maybeText === "string" &&
-              !seenTool &&
-              preToolBuffer.length === 0 &&
-              visibleBuffer.length === 0
-            ) {
-              // If no tool was seen and buffers are empty, adopt final text as pre-tool text
-              preToolBuffer = maybeText;
-            }
-          }
-        } catch {
-          // ignore; will treat as best-effort below
-        }
+      // Messages are now recorded in onStepFinish callback
 
-        // If still unknown, infer based on whether there are pending tool calls
-        if (finishReason === "unknown") {
-          finishReason = pendingToolCalls.length > 0 ? "tool-calls" : "stop";
-        }
-      }
-
-      // Build the assistant message parts for conversation history.
-      // Visible text is the text after tools (if any), or pre-tool text if no tools were called.
-      const assistantContent: Array<TextPart | AIToolCallPart> = [];
-
-      if (
-        finishReason === "stop" ||
-        finishReason === "length" ||
-        finishReason === "content-filter"
-      ) {
-        const visible = seenTool ? visibleBuffer : preToolBuffer;
-        if (visible) {
-          assistantContent.push({ type: "text", text: visible });
-        }
-      }
-
-      if (!this.emitAssistantOnToolCall) {
-        for (const tc of pendingToolCalls) {
-          const toolCallMsgPart: AIToolCallPart = {
-            type: "tool-call",
-            toolCallId: tc.toolCallId,
-            toolName: tc.toolName as unknown as string,
-            input: tc.input,
-          };
-          assistantContent.push(toolCallMsgPart);
-        }
-      }
-
-      if (assistantContent.length > 0) {
-        this.params.conversationHistory.append({
-          role: "assistant",
-          content: assistantContent,
-        });
-      }
+      // Deno.writeTextFileSync("messages.json", JSON.stringify(await stream.response, null, 2));
 
       let responseText: string;
       switch (finishReason) {
@@ -395,15 +373,8 @@ export class MainAgent implements MainAgentAPI {
           responseText = visible;
           break;
         }
-        case "error":
-          throw new Error("Model stopped because of an error");
-        case "other":
-          throw new Error("Model stopped for other reasons");
-        // For unknown or any other (default), treat as "stop" (do not throw)
         default: {
-          const visible = seenTool ? visibleBuffer : preToolBuffer;
-          responseText = visible;
-          break;
+          throw new Error(`Model stopped for ${finishReason} reason`);
         }
       }
 
@@ -427,9 +398,6 @@ export class MainAgent implements MainAgentAPI {
   }
 
   private async generateSystemPrompt() {
-    if (this.params.basePrompt !== undefined) {
-      return this.params.basePrompt;
-    }
     return `# System Prompt for Server Agent
 
 ## Role & Mission
@@ -571,7 +539,7 @@ free -h | sed -n '1,3p'
 * Env exports: see Global Rules.
 * Mask secrets in outputs (e.g., \`******\`).
 
-## Output & Noise Control (Merged)
+## Output & Noise Control
 
 * Prefer compact formats and summaries; avoid wall-of-text logs.
 * Use counts and top‑N: \`head\`, \`tail\`, \`wc -l\`, \`sort | uniq -c | sort -nr\`.
@@ -641,10 +609,10 @@ systemctl reload <svc>
 **Result/Next:** status + key metrics/logs; follow-ups.
 
 ## SERVER_INFO
-${this.params.systemInfo.toMarkdown()}
+${this.systemInfo.toMarkdown()}
 
 ## FACTS
-${await this.params.factsStorage.toMarkdown()}
+${await this.factsStorage.toMarkdown()}
 `;
   }
 }
