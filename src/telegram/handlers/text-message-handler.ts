@@ -54,11 +54,13 @@ export function createTextMessageHandler(
     // Send typing action to show the bot is processing
     await ctx.api.sendChatAction(ctx.chat!.id, "typing");
 
+    const msg = await ctx.reply("...");
+
     try {
       // Process query through agent
       const { text: responseText } = await mainAgent.processUserQuery({
         userQuery: userQuery,
-        correlationId: ctx.update.update_id?.toString(),
+        correlationId: msg.message_id?.toString(),
         onThoughts: async (thoughts) => {
           await ctx.reply(
             markdownToTelegramHTML(
@@ -144,4 +146,9 @@ export function createTextMessageHandler(
       });
     }
   };
+}
+
+interface messageParts {
+  callThoughts: string;
+  toTelegram: (text: string) => void;
 }

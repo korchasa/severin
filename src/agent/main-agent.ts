@@ -10,9 +10,9 @@ import { ConversationHistory } from "./history/service.ts";
 import { log } from "../utils/logger.ts";
 import type { LanguageModelV2, LanguageModelV2ToolResultOutput } from "@ai-sdk/provider";
 import {
+  Experimental_Agent as Agent,
   FinishReason,
   stepCountIs,
-  streamText,
   TextPart,
   Tool,
   ToolCallPart as AIToolCallPart,
@@ -88,12 +88,26 @@ export class MainAgent implements MainAgentAPI {
   private readonly maxSteps: number;
   private readonly historyWindow: number;
   private readonly emitAssistantOnToolCall: boolean;
+  // Refined agent type
+  private readonly agent: Agent<ToolSet, never, never>;
 
   constructor(params: MainAgentParams) {
     this.params = params;
     this.maxSteps = params.maxSteps ?? 10;
     this.historyWindow = params.maxHistoryMessages ?? 200;
     this.emitAssistantOnToolCall = params.emitAssistantOnToolCall ?? false;
+    // Agent instantiation (remove system property)
+    this.agent = new Agent({
+      model: this.params.llmModel,
+      temperature: this.params.llmTemperature,
+      tools: {
+        terminal: this.params.terminalTool,
+        add_fact: createAddFactTool(this.params.factsStorage),
+        update_fact: createUpdateFactTool(this.params.factsStorage),
+        delete_fact: createDeleteFactTool(this.params.factsStorage),
+      },
+      stopWhen: [stepCountIs(this.maxSteps)],
+    });
   }
 
   /**
@@ -131,19 +145,250 @@ export class MainAgent implements MainAgentAPI {
     });
 
     try {
-      const { responseText, finishReason, stepsCount } = await this.loop(
-        userQuery,
-        onTextDelta,
-        onCallThoughts,
-        onBeforeCall,
-        onAfterCall,
-      );
+      // Generate system prompt and prepend to messages
+      const systemPrompt = await this.generateSystemPrompt();
+      const messages = [
+        { role: "system", content: systemPrompt },
+        ...this.params.conversationHistory.getRecentMessages(this.historyWindow),
+      ];
 
-      console.log(">>> loop", {
-        finishReason,
-        stepsCount,
-        responseText,
-      });
+      // Stream agent response
+      const stream = this.agent.stream({ messages });
+
+      // Helper types for strict typing
+      type ToolResultStreamPart = {
+        type: "tool-result";
+        toolCallId: string;
+        result: LanguageModelV2ToolResultOutput;
+        toolName?: string;
+      };
+      type AgentStreamPart = TextDeltaPart | ToolCallStreamPart | FinishPart | ToolResultStreamPart;
+      type Thenable<T> = {
+        then: (
+          onfulfilled: (value: T) => unknown,
+          onrejected?: (reason: unknown) => unknown,
+        ) => unknown;
+      };
+
+      let preToolBuffer = "";
+      let visibleBuffer = "";
+      let seenTool = false;
+      let finishReason: FinishReason = "unknown";
+      const pendingToolCalls: Array<{
+        toolCallId: string;
+        toolName: ToolName;
+        input: ToolInput;
+      }> = [];
+
+      // Use strictly typed fullStream
+      const fullStream =
+        (stream as unknown as { fullStream: AsyncIterable<AgentStreamPart> }).fullStream;
+      try {
+        for await (const part of fullStream) {
+          switch (part.type) {
+            case "text-delta": {
+              const p = part as TextDeltaPart;
+              if (!seenTool) {
+                preToolBuffer += p.text;
+              } else {
+                visibleBuffer += p.text;
+              }
+              try {
+                onTextDelta?.(p.text);
+              } catch (e) {
+                console.debug("onTextDelta callback error", e);
+              }
+              break;
+            }
+            case "tool-call": {
+              const tc = part as ToolCallStreamPart;
+
+              // Emit "thoughts" exactly at the first tool-call (text before tools)
+              if (!seenTool && preToolBuffer) {
+                try {
+                  onCallThoughts?.(preToolBuffer);
+                } catch (e) {
+                  console.debug("onThoughts callback error", e);
+                }
+              }
+              seenTool = true;
+
+              const toolCallForHook: TypedToolCall<ToolSet> = {
+                type: "tool-call",
+                toolCallId: tc.toolCallId,
+                toolName: tc.toolName as unknown as string,
+                input: tc.input,
+              };
+              const toolCallForPending = {
+                toolCallId: tc.toolCallId,
+                toolName: tc.toolName,
+                input: tc.input,
+              };
+              pendingToolCalls.push(toolCallForPending);
+              try {
+                onBeforeCall?.(toolCallForHook);
+              } catch (e) {
+                console.debug("beforeCall hook error", e);
+              }
+              // Optionally emit assistant message with the tool-call right now
+              if (this.emitAssistantOnToolCall) {
+                const toolCallMsgPart: AIToolCallPart = {
+                  type: "tool-call",
+                  toolCallId: tc.toolCallId,
+                  toolName: tc.toolName as unknown as string,
+                  input: tc.input,
+                };
+                this.params.conversationHistory.append({
+                  role: "assistant",
+                  content: [toolCallMsgPart],
+                });
+              }
+              break;
+            }
+            case "tool-result": {
+              // Auto-executed tool result from SDK: forward to afterCall and append to history
+              const tr = part as unknown as {
+                type: "tool-result";
+                toolCallId: string;
+                result: unknown;
+                toolName?: string;
+              };
+              const pending = pendingToolCalls.find(
+                (p) => p.toolCallId === tr.toolCallId,
+              );
+              const resolvedToolName = tr.toolName ?? pending?.toolName ?? "";
+              const toolName: string = String(resolvedToolName);
+
+              const toolOutput: LanguageModelV2ToolResultOutput = tr
+                .result as LanguageModelV2ToolResultOutput;
+
+              try {
+                onAfterCall?.(tr.result as TypedToolResult<ToolSet>);
+              } catch (e) {
+                console.debug("afterCall hook error", e);
+              }
+
+              const toolMsgPart: ToolResultPart = {
+                type: "tool-result",
+                toolCallId: tr.toolCallId,
+                toolName,
+                output: toolOutput,
+              };
+              this.params.conversationHistory.append({
+                role: "tool",
+                content: [toolMsgPart],
+              });
+              break;
+            }
+            case "finish": {
+              const f = part as FinishPart;
+              finishReason = f.finishReason;
+              break;
+            }
+            default:
+              // ignore other stream parts (start, tool-call-delta, metadata, etc.)
+              break;
+          }
+        }
+      } catch (error) {
+        console.error(">>> streamText error", error);
+        throw error;
+      }
+
+      // Fallback: if no explicit finish part was received, resolve the stream result
+      if (finishReason === "unknown") {
+        try {
+          const finalResult: unknown =
+            await (stream as unknown as Thenable<{ finishReason?: FinishReason; text?: string }>);
+          if (typeof finalResult === "object" && finalResult !== null) {
+            const fr = (finalResult as { finishReason?: FinishReason }).finishReason;
+            if (fr) finishReason = fr;
+            const maybeText = (finalResult as { text?: string }).text;
+            if (
+              typeof maybeText === "string" &&
+              !seenTool &&
+              preToolBuffer.length === 0 &&
+              visibleBuffer.length === 0
+            ) {
+              // If no tool was seen and buffers are empty, adopt final text as pre-tool text
+              preToolBuffer = maybeText;
+            }
+          }
+        } catch {
+          // ignore; will treat as best-effort below
+        }
+
+        // If still unknown, infer based on whether there are pending tool calls
+        if (finishReason === "unknown") {
+          finishReason = pendingToolCalls.length > 0 ? "tool-calls" : "stop";
+        }
+      }
+
+      // Build the assistant message parts for conversation history.
+      // Visible text is the text after tools (if any), or pre-tool text if no tools were called.
+      const assistantContent: Array<TextPart | AIToolCallPart> = [];
+
+      if (
+        finishReason === "stop" ||
+        finishReason === "length" ||
+        finishReason === "content-filter"
+      ) {
+        const visible = seenTool ? visibleBuffer : preToolBuffer;
+        if (visible) {
+          assistantContent.push({ type: "text", text: visible });
+        }
+      }
+
+      if (!this.emitAssistantOnToolCall) {
+        for (const tc of pendingToolCalls) {
+          const toolCallMsgPart: AIToolCallPart = {
+            type: "tool-call",
+            toolCallId: tc.toolCallId,
+            toolName: tc.toolName as unknown as string,
+            input: tc.input,
+          };
+          assistantContent.push(toolCallMsgPart);
+        }
+      }
+
+      if (assistantContent.length > 0) {
+        this.params.conversationHistory.append({
+          role: "assistant",
+          content: assistantContent,
+        });
+      }
+
+      let responseText: string;
+      switch (finishReason) {
+        case "stop": {
+          const visible = seenTool ? visibleBuffer : preToolBuffer;
+          responseText = visible;
+          break;
+        }
+        case "tool-calls":
+          responseText = "";
+          break;
+        case "length": {
+          const visible = seenTool ? visibleBuffer : preToolBuffer;
+          responseText = visible;
+          break;
+        }
+        case "content-filter": {
+          const visible = seenTool ? visibleBuffer : preToolBuffer;
+          responseText = visible;
+          break;
+        }
+        case "error":
+          throw new Error("Model stopped because of an error");
+        case "other":
+          throw new Error("Model stopped for other reasons");
+        // For unknown or any other (default), treat as "stop" (do not throw)
+        default: {
+          const visible = seenTool ? visibleBuffer : preToolBuffer;
+          responseText = visible;
+          break;
+        }
+      }
 
       log({
         mod: "agent",
@@ -161,311 +406,6 @@ export class MainAgent implements MainAgentAPI {
         error: (error as Error).message,
       });
       throw error;
-    }
-  }
-
-  private async loop(
-    userQuery: string,
-    onTextDelta?: (delta: string) => void,
-    onCallThoughts?: beforeCallThoughts,
-    onBeforeCall?: beforeCallHandler,
-    onAfterCall?: afterCallHandler,
-  ): Promise<{
-    responseText: string;
-    finishReason: FinishReason;
-    stepsCount: number;
-  }> {
-    this.params.conversationHistory.append({
-      role: "user",
-      content: userQuery,
-    });
-
-    let visibleText = "";
-    let stepsCount = 0;
-    let finishReason: FinishReason = "unknown";
-
-    while (stepsCount < this.maxSteps) {
-      const res = await this.stepStream(
-        onTextDelta,
-        onCallThoughts,
-        onBeforeCall,
-        onAfterCall,
-      );
-      if (!res) {
-        throw new Error("No result from step");
-      }
-
-      // Only accumulate final, user-visible assistant text (exclude "thoughts" before tool calls)
-      if (res.finishReason === "stop" && res.assistantText) {
-        visibleText += (visibleText && res.assistantText ? "\n" : "") + res.assistantText;
-      }
-
-      finishReason = res.finishReason;
-      stepsCount++;
-
-      if (finishReason === "stop") {
-        break;
-      }
-    }
-
-    return {
-      responseText: visibleText,
-      finishReason,
-      stepsCount,
-    };
-  }
-
-  /**
-   * @param onThoughts
-   * @param beforeCall
-   * @param afterCall
-   * @returns
-   */
-
-  private async stepStream(
-    onTextDelta?: deltaTextHandler,
-    onCallThoughts?: beforeCallThoughts,
-    onBeforeCall?: beforeCallHandler,
-    onAfterCall?: afterCallHandler,
-  ): Promise<
-    | {
-      assistantText: string; // visible, user-facing text
-      finishReason: FinishReason;
-    }
-    | undefined
-  > {
-    console.log(
-      ">>> messages",
-      this.params.conversationHistory.getRecentMessages(this.historyWindow),
-    );
-
-    // Stream a single step of the agent (tool orchestration is handled across loop iterations)
-    const stream = streamText<ToolSet, unknown>({
-      model: this.params.llmModel,
-      temperature: this.params.llmTemperature,
-      system: await this.generateSystemPrompt(),
-      messages: this.params.conversationHistory.getRecentMessages(
-        this.historyWindow,
-      ),
-      tools: {
-        terminal: this.params.terminalTool,
-        add_fact: createAddFactTool(this.params.factsStorage),
-        update_fact: createUpdateFactTool(this.params.factsStorage),
-        delete_fact: createDeleteFactTool(this.params.factsStorage),
-      },
-      stopWhen: [stepCountIs(10)],
-    });
-
-    let preToolBuffer = "";
-    let visibleBuffer = "";
-    let seenTool = false;
-    let finishReason: FinishReason = "unknown";
-    const pendingToolCalls: Array<{
-      toolCallId: string;
-      toolName: ToolName;
-      input: ToolInput;
-    }> = [];
-    const emittedToolCallIds = new Set<string>();
-
-    try {
-      for await (const part of stream.fullStream) {
-        switch (part.type) {
-          case "text-delta": {
-            const p = part as TextDeltaPart;
-            if (!seenTool) {
-              preToolBuffer += p.text;
-            } else {
-              visibleBuffer += p.text;
-            }
-            try {
-              onTextDelta?.(p.text);
-            } catch (e) {
-              console.debug("onTextDelta callback error", e);
-            }
-            break;
-          }
-          case "tool-call": {
-            const tc = part as ToolCallStreamPart;
-
-            // Emit "thoughts" exactly at the first tool-call (text before tools)
-            if (!seenTool && preToolBuffer) {
-              try {
-                onCallThoughts?.(preToolBuffer);
-              } catch (e) {
-                console.debug("onThoughts callback error", e);
-              }
-            }
-            seenTool = true;
-
-            const toolCallForHook: TypedToolCall<ToolSet> = {
-              type: "tool-call",
-              toolCallId: tc.toolCallId,
-              toolName: tc.toolName as unknown as string,
-              input: tc.input,
-            };
-            const toolCallForPending = {
-              toolCallId: tc.toolCallId,
-              toolName: tc.toolName,
-              input: tc.input,
-            };
-            pendingToolCalls.push(toolCallForPending);
-            try {
-              onBeforeCall?.(toolCallForHook);
-            } catch (e) {
-              console.debug("beforeCall hook error", e);
-            }
-            // Optionally emit assistant message with the tool-call right now
-            if (this.emitAssistantOnToolCall) {
-              const toolCallMsgPart: AIToolCallPart = {
-                type: "tool-call",
-                toolCallId: tc.toolCallId,
-                toolName: tc.toolName as unknown as string,
-                input: tc.input,
-              };
-              this.params.conversationHistory.append({
-                role: "assistant",
-                content: [toolCallMsgPart],
-              });
-              emittedToolCallIds.add(tc.toolCallId);
-            }
-            break;
-          }
-          case "tool-result": {
-            // Auto-executed tool result from SDK: forward to afterCall and append to history
-            const tr = part as unknown as {
-              type: "tool-result";
-              toolCallId: string;
-              result: unknown;
-              toolName?: string;
-            };
-            const pending = pendingToolCalls.find(
-              (p) => p.toolCallId === tr.toolCallId,
-            );
-            const resolvedToolName = tr.toolName ?? pending?.toolName ?? "";
-            const toolName: string = String(resolvedToolName);
-
-            const toolOutput: LanguageModelV2ToolResultOutput = tr
-              .result as LanguageModelV2ToolResultOutput;
-
-            try {
-              onAfterCall?.(tr.result as TypedToolResult<ToolSet>);
-            } catch (e) {
-              console.debug("afterCall hook error", e);
-            }
-
-            const toolMsgPart: ToolResultPart = {
-              type: "tool-result",
-              toolCallId: tr.toolCallId,
-              toolName,
-              output: toolOutput,
-            };
-            this.params.conversationHistory.append({
-              role: "tool",
-              content: [toolMsgPart],
-            });
-            break;
-          }
-          case "finish": {
-            const f = part as FinishPart;
-            finishReason = f.finishReason;
-            break;
-          }
-          default:
-            // ignore other stream parts (start, tool-call-delta, metadata, etc.)
-            break;
-        }
-      }
-    } catch (error) {
-      console.error(">>> streamText error", error);
-      throw error;
-    }
-
-    // Fallback: if no explicit finish part was received, resolve the stream result
-    if (finishReason === "unknown") {
-      try {
-        const finalResult: unknown = await stream;
-        if (typeof finalResult === "object" && finalResult !== null) {
-          const fr = (finalResult as { finishReason?: FinishReason }).finishReason;
-          if (fr) finishReason = fr;
-          const maybeText = (finalResult as { text?: string }).text;
-          if (
-            typeof maybeText === "string" &&
-            !seenTool &&
-            preToolBuffer.length === 0 &&
-            visibleBuffer.length === 0
-          ) {
-            // If no tool was seen and buffers are empty, adopt final text as pre-tool text
-            preToolBuffer = maybeText;
-          }
-        }
-      } catch {
-        // ignore; will treat as best-effort below
-      }
-
-      // If still unknown, infer based on whether there are pending tool calls
-      if (finishReason === "unknown") {
-        finishReason = pendingToolCalls.length > 0 ? "tool-calls" : "stop";
-      }
-    }
-
-    // Build the assistant message parts for conversation history.
-    // Visible text is the text after tools (if any), or pre-tool text if no tools were called.
-    const assistantContent: Array<TextPart | AIToolCallPart> = [];
-
-    if (
-      finishReason === "stop" ||
-      finishReason === "length" ||
-      finishReason === "content-filter"
-    ) {
-      const visible = seenTool ? visibleBuffer : preToolBuffer;
-      if (visible) {
-        assistantContent.push({ type: "text", text: visible });
-      }
-    }
-
-    if (!this.emitAssistantOnToolCall) {
-      for (const tc of pendingToolCalls) {
-        const toolCallMsgPart: AIToolCallPart = {
-          type: "tool-call",
-          toolCallId: tc.toolCallId,
-          toolName: tc.toolName as unknown as string,
-          input: tc.input,
-        };
-        assistantContent.push(toolCallMsgPart);
-      }
-    }
-
-    if (assistantContent.length > 0) {
-      this.params.conversationHistory.append({
-        role: "assistant",
-        content: assistantContent,
-      });
-    }
-
-    switch (finishReason) {
-      case "stop": {
-        const visible = seenTool ? visibleBuffer : preToolBuffer;
-        return { assistantText: visible, finishReason };
-      }
-      case "tool-calls":
-        return { assistantText: "", finishReason };
-      case "length": {
-        const visible = seenTool ? visibleBuffer : preToolBuffer;
-        return { assistantText: visible, finishReason };
-      }
-      case "content-filter": {
-        const visible = seenTool ? visibleBuffer : preToolBuffer;
-        return { assistantText: visible, finishReason };
-      }
-      case "error":
-        throw new Error("Model stopped because of an error");
-      case "other":
-        throw new Error("Model stopped for other reasons");
-      // For unknown or any other (default), treat as "stop" (do not throw)
-      default: {
-        const visible = seenTool ? visibleBuffer : preToolBuffer;
-        return { assistantText: visible, finishReason };
-      }
     }
   }
 
