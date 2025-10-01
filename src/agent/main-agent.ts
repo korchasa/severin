@@ -20,6 +20,7 @@ import {
   ToolSet,
   TypedToolCall,
   TypedToolResult,
+  ModelMessage,
 } from "ai";
 import { SystemInfo } from "../system-info/system-info.ts";
 import type { FactsStorage } from "../core/types.ts";
@@ -147,7 +148,7 @@ export class MainAgent implements MainAgentAPI {
     try {
       // Generate system prompt and prepend to messages
       const systemPrompt = await this.generateSystemPrompt();
-      const messages = [
+      const messages: ModelMessage[] = [
         { role: "system", content: systemPrompt },
         ...this.params.conversationHistory.getRecentMessages(this.historyWindow),
       ];
