@@ -12,6 +12,7 @@ import type { LanguageModelV2, LanguageModelV2ToolResultOutput } from "@ai-sdk/p
 import {
   Experimental_Agent as Agent,
   FinishReason,
+  ModelMessage,
   stepCountIs,
   TextPart,
   Tool,
@@ -20,10 +21,9 @@ import {
   ToolSet,
   TypedToolCall,
   TypedToolResult,
-  ModelMessage,
 } from "ai";
 import { SystemInfo } from "../system-info/system-info.ts";
-import type { FactsStorage } from "../core/types.ts";
+import type { Fact, FactsStorage } from "../core/types.ts";
 import {
   createAddFactTool,
   createDeleteFactTool,
@@ -46,6 +46,22 @@ type ToolCallStreamPart = {
   input: ToolInput;
 };
 type FinishPart = { type: "finish"; finishReason: FinishReason };
+
+type MainAgentToolSet = {
+  terminal: Tool;
+  add_fact: Tool<
+    { content: string },
+    { success: true; fact: Fact } | { success: false; error: string }
+  >;
+  update_fact: Tool<
+    { id: string; content: string },
+    { success: true; fact: Fact } | { success: false; error: string; id: string }
+  >;
+  delete_fact: Tool<
+    { id: string },
+    { success: true; id: string } | { success: false; error: string; id: string }
+  >;
+};
 
 export interface MainAgentAPI {
   processUserQuery(input: {
@@ -90,7 +106,7 @@ export class MainAgent implements MainAgentAPI {
   private readonly historyWindow: number;
   private readonly emitAssistantOnToolCall: boolean;
   // Refined agent type
-  private readonly agent: Agent<ToolSet, never, never>;
+  private readonly agent: Agent<MainAgentToolSet, never, never>;
 
   constructor(params: MainAgentParams) {
     this.params = params;
