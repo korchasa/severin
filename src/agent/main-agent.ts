@@ -6,23 +6,20 @@
  * to provide clean public API for user queries.
  */
 
-import { ConversationHistory } from "./history/service.ts";
+import { ContextBuilder } from "./context/builder.ts";
 import { log } from "../utils/logger.ts";
 import type { LanguageModelV2, LanguageModelV2ToolResultOutput } from "@ai-sdk/provider";
 import {
   Experimental_Agent as Agent,
   FinishReason,
-  ModelMessage,
   stepCountIs,
   Tool,
-  ToolCallPart as AIToolCallPart,
-  ToolResultPart,
   ToolSet,
   TypedToolCall,
   TypedToolResult,
 } from "ai";
 import { SystemInfo } from "../system-info/system-info.ts";
-import type { Fact, FactsStorage } from "../core/types.ts";
+import type { Fact, FactsStorage } from "./facts/types.ts";
 import {
   createAddFactTool,
   createDeleteFactTool,
@@ -79,7 +76,7 @@ export interface MainAgentParams {
   basePrompt: string | undefined;
   llmModel: LanguageModelV2;
   llmTemperature: number;
-  conversationHistory: ConversationHistory;
+  contextBuilder: ContextBuilder;
   systemInfo: SystemInfo;
   factsStorage: FactsStorage;
   terminalTool: Tool;
@@ -100,20 +97,16 @@ export interface MainAgentParams {
 export class MainAgent implements MainAgentAPI {
   private readonly llmModel: LanguageModelV2;
   private readonly llmTemperature: number;
-  private readonly conversationHistory: ConversationHistory;
-  private readonly systemInfo: SystemInfo;
+  private readonly contextBuilder: ContextBuilder;
   private readonly factsStorage: FactsStorage;
   private readonly terminalTool: Tool;
-  private readonly dataDir: string;
   private readonly maxSteps: number;
   constructor(params: MainAgentParams) {
     this.llmModel = params.llmModel;
     this.llmTemperature = params.llmTemperature;
-    this.conversationHistory = params.conversationHistory;
-    this.systemInfo = params.systemInfo;
+    this.contextBuilder = params.contextBuilder;
     this.factsStorage = params.factsStorage;
     this.terminalTool = params.terminalTool;
-    this.dataDir = params.dataDir;
     this.maxSteps = params.maxSteps ?? 10;
   }
 
@@ -151,14 +144,13 @@ export class MainAgent implements MainAgentAPI {
       textLength: userQuery.length,
     });
 
-    this.conversationHistory.append({ role: "user", content: userQuery });
-
-    const basePrompt = await this.generateSystemPrompt();
+    this.contextBuilder.appendUserQuery(userQuery);
+    this.contextBuilder.setBasePromptTemplate(this.getSystemPromptTemplate());
 
     // Agent instantiation (remove system property)
     const agent = new Agent({
       model: this.llmModel,
-      system: basePrompt,
+      system: await this.contextBuilder.generateBasePrompt(),
       temperature: this.llmTemperature,
       tools: {
         terminal: this.terminalTool,
@@ -168,57 +160,13 @@ export class MainAgent implements MainAgentAPI {
       },
       stopWhen: [stepCountIs(this.maxSteps)],
       onStepFinish: (step) => {
-        // Record assistant message with tool calls (if any)
-        if (step.toolCalls.length > 0) {
-          const toolCallContent: AIToolCallPart[] = [];
-          for (const tc of step.toolCalls) {
-            toolCallContent.push({
-              type: "tool-call",
-              toolCallId: tc.toolCallId,
-              toolName: tc.toolName as unknown as string,
-              input: tc.input,
-            });
-          }
-          this.conversationHistory.append({
-            role: "assistant",
-            content: toolCallContent,
-          });
-        }
-
-        // Record all tool results
-        for (const tr of step.toolResults) {
-          const toolMsgPart: ToolResultPart = {
-            type: "tool-result",
-            toolCallId: tr.toolCallId,
-            toolName: tr.toolName,
-            output: tr.output,
-          };
-          this.conversationHistory.append({
-            role: "tool",
-            content: [toolMsgPart],
-          });
-        }
-
-        // Record assistant message with text response (if any)
-        if (step.text) {
-          this.conversationHistory.append({
-            role: "assistant",
-            content: [{ type: "text", text: step.text }],
-          });
-        }
+        this.contextBuilder.appendAgentStep(step);
       },
     });
 
     try {
-      // Generate system prompt and prepend to messages
-      const systemPrompt = await this.generateSystemPrompt();
-      const messages: ModelMessage[] = [
-        { role: "system", content: systemPrompt },
-        ...this.conversationHistory.getRecentMessages(),
-      ];
-
       // Stream agent response
-      const stream = agent.stream({ messages });
+      const stream = agent.stream({ messages: this.contextBuilder.getRecentMessages() });
 
       // Helper types for strict typing
       type ToolResultStreamPart = {
@@ -397,7 +345,7 @@ export class MainAgent implements MainAgentAPI {
     }
   }
 
-  private async generateSystemPrompt() {
+  private getSystemPromptTemplate() {
     return `# System Prompt for Server Agent
 
 ## Role & Mission
@@ -609,10 +557,10 @@ systemctl reload <svc>
 **Result/Next:** status + key metrics/logs; follow-ups.
 
 ## SERVER_INFO
-${this.systemInfo.toMarkdown()}
+{{SERVER_INFO}}
 
 ## FACTS
-${await this.factsStorage.toMarkdown()}
+{{FACTS}}
 `;
   }
 }

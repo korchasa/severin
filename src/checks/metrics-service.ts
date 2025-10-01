@@ -3,7 +3,7 @@
  * Stores metrics in JSONL format for historical analysis
  */
 
-import type { MetricValue } from "../core/types.ts";
+import type { MetricValue } from "./types.ts";
 
 /**
  * Service for storing and retrieving metrics with historical data

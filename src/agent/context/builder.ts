@@ -4,7 +4,16 @@
  * Ensures crash-resistance by writing user messages immediately and assistant messages after stream completion.
  */
 
-import { type ModelMessage, type UIMessage } from "ai";
+import {
+  type ModelMessage,
+  StepResult,
+  Tool,
+  ToolCallPart,
+  ToolResultPart,
+  type UIMessage,
+} from "ai";
+import { SystemInfo } from "../../system-info/system-info.ts";
+import { Fact, FactsStorage } from "../facts/types.ts";
 
 // Simple message types compatible with our logic
 type SimpleMessage = {
@@ -22,12 +31,25 @@ type ComplexMessage = {
  * Stores messages internally as SimpleMessage[] and converts to ModelMessage[] on retrieval.
  * Provides crash-resistance: user messages written immediately, assistant messages after stream completion.
  */
-export class ConversationHistory {
+export class ContextBuilder {
   private maxSymbols: number;
+  private systemInfo: SystemInfo;
+  private factsStorage: FactsStorage;
   private history: SimpleMessage[] = [];
+  basePromptTemplate?: string;
 
-  constructor(maxSymbols: number) {
+  constructor(
+    maxSymbols: number,
+    systemInfo: SystemInfo,
+    factsStorage: FactsStorage,
+  ) {
     this.maxSymbols = maxSymbols;
+    this.systemInfo = systemInfo;
+    this.factsStorage = factsStorage;
+  }
+
+  setBasePromptTemplate(basePromptTemplate: string): void {
+    this.basePromptTemplate = basePromptTemplate;
   }
 
   /**
@@ -56,15 +78,91 @@ export class ConversationHistory {
     }
   }
 
+  appendUserQuery(userQuery: string) {
+    this.append({ role: "user", content: userQuery });
+  }
+
+  appendAgentStep(
+    step: StepResult<
+      NoInfer<{
+        terminal: Tool;
+        add_fact: Tool<
+          { content: string },
+          { success: true; fact: Fact } | { success: false; error: string }
+        >;
+        update_fact: Tool<
+          { id: string; content: string },
+          | { success: true; fact: Fact }
+          | { success: false; error: string; id: string }
+        >;
+        delete_fact: Tool<
+          { id: string },
+          | { success: true; id: string }
+          | { success: false; error: string; id: string }
+        >;
+      }>
+    >,
+  ) {
+    // Record assistant message with tool calls (if any)
+    if (step.toolCalls.length > 0) {
+      const toolCallContent: ToolCallPart[] = [];
+      for (const tc of step.toolCalls) {
+        toolCallContent.push({
+          type: "tool-call",
+          toolCallId: tc.toolCallId,
+          toolName: tc.toolName as unknown as string,
+          input: tc.input,
+        });
+      }
+      this.append({
+        role: "assistant",
+        content: toolCallContent,
+      });
+    }
+
+    // Record all tool results
+    for (const tr of step.toolResults) {
+      const toolMsgPart: ToolResultPart = {
+        type: "tool-result",
+        toolCallId: tr.toolCallId,
+        toolName: tr.toolName,
+        output: tr.output,
+      };
+      this.append({
+        role: "tool",
+        content: [toolMsgPart],
+      });
+    }
+
+    // Record assistant message with text response (if any)
+    if (step.text) {
+      this.append({
+        role: "assistant",
+        content: [{ type: "text", text: step.text }],
+      });
+    }
+  }
+
   /**
    * Checks if message is already a SimpleMessage (simple string content).
    */
   private isSimpleMessage(msg: UIMessage | ModelMessage): boolean {
     const content = (msg as ComplexMessage).content;
     const role = (msg as ComplexMessage).role;
-    return typeof content === "string" &&
+    return (
+      typeof content === "string" &&
       ["user", "assistant", "system"].includes(role) &&
-      !Array.isArray(content);
+      !Array.isArray(content)
+    );
+  }
+
+  async generateBasePrompt(): Promise<string> {
+    if (!this.basePromptTemplate) {
+      throw new Error("Base prompt template is not set");
+    }
+    return this.basePromptTemplate
+      .replace("{{SERVER_INFO}}", this.systemInfo.toMarkdown())
+      .replace("{{FACTS}}", await this.factsStorage.toMarkdown());
   }
 
   /**
@@ -131,8 +229,10 @@ export class ConversationHistory {
    */
   private isSerializedComplexContent(content: string): boolean {
     const trimmed = content.trim();
-    return (trimmed.startsWith("[") && trimmed.endsWith("]")) ||
-      (trimmed.startsWith("{") && trimmed.endsWith("}"));
+    return (
+      (trimmed.startsWith("[") && trimmed.endsWith("]")) ||
+      (trimmed.startsWith("{") && trimmed.endsWith("}"))
+    );
   }
 
   /**

@@ -2,7 +2,7 @@
  * Checks engine - coordinates all system health checks
  */
 
-import type { MetricValue } from "../core/types.ts";
+import type { MetricValue } from "./types.ts";
 import type { Config } from "../config/config.ts";
 import { regularCollectors, sensitiveCollectors } from "./metrics/index.ts";
 import { log } from "../utils/logger.ts";

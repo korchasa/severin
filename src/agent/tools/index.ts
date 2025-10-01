@@ -1,5 +1,5 @@
 import z from "zod";
-import { TerminalRequest, TerminalResponse } from "../../core/types.ts";
+import { TerminalRequest, TerminalResponse } from "./types.ts";
 import { AddFactParams, DeleteFactParams, UpdateFactParams } from "./facts.ts";
 
 export type ToolName = "terminal" | "add_fact" | "update_fact" | "delete_fact";

@@ -43,13 +43,16 @@ src/
 │   ├── diagnose-task.ts     # DiagnoseTask for problem diagnosis
 │   ├── llm.ts               # LLM interface
 │   ├── facts/
-│   │   ├── storage.ts         # Persistent facts storage implementation
-│   │   └── storage.test.ts    # Facts storage unit tests
-│   ├── history/
-│   │   ├── service.ts       # ConversationHistory service
-│   │   └── service.test.ts
+│   │   ├── file.ts           # Persistent facts storage implementation
+│   │   ├── file.test.ts      # Facts storage unit tests
+│   │   ├── types.ts          # Facts types and interfaces
+│   │   └── mock.ts           # Mock facts storage for tests
+│   ├── context/
+│   │   ├── builder.ts        # ContextBuilder: symbol-limited context & prompt templating
+│   │   └── builder.test.ts
 │   └── tools/
 │       ├── terminal.ts      # Terminal command execution tool
+│       ├── types.ts         # Terminal tool request/response types
 │       ├── terminal.test.ts
 │       ├── stop.ts          # Stop conversation tool
 │       ├── facts.ts           # Facts management tools for LLM

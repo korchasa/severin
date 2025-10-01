@@ -10,7 +10,7 @@
  */
 
 import { assert, assertEquals } from "@std/assert";
-import type { MetricValue } from "../core/types.ts";
+import type { MetricValue } from "./types.ts";
 import { MetricsAnalyzer } from "./metrics-analyzer.ts";
 
 Deno.test("MetricsAnalyzer - calculates percentage differences", () => {

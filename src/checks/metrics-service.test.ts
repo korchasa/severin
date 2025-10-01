@@ -4,7 +4,7 @@
 
 import { assert, assertEquals } from "@std/assert";
 import { join } from "@std/path";
-import type { MetricValue } from "../core/types.ts";
+import type { MetricValue } from "./types.ts";
 import { MetricsService } from "./metrics-service.ts";
 
 Deno.test("MetricsService - stores and retrieves metrics", async () => {

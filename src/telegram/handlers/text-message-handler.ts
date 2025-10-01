@@ -12,7 +12,7 @@ import type { Config } from "../../config/types.ts";
 import type { MainAgent } from "../../agent/main-agent.ts";
 import { log } from "../../utils/logger.ts";
 import { markdownToTelegramHTML } from "../telegram-format.ts";
-import { TerminalRequest } from "../../core/types.ts";
+import { TerminalRequest } from "../../agent/tools/types.ts";
 import { z } from "zod";
 import { AddFactParams, DeleteFactParams, UpdateFactParams } from "../../agent/tools/facts.ts";
 import { ToolSet, TypedToolCall, TypedToolResult } from "ai";

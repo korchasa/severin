@@ -1,5 +1,5 @@
 import { assert, assertEquals, assertExists } from "@std/assert";
-import { FileFactsStorage, generateId } from "./storage.ts";
+import { FileFactsStorage, generateId } from "./file.ts";
 
 Deno.test("FileFactsStorage: basic CRUD operations", async () => {
   // Create temporary directory for test

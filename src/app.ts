@@ -15,11 +15,11 @@ import { createHistoryResetCommand } from "./telegram/handlers/command-reset-han
 import { createTextMessageHandler } from "./telegram/handlers/text-message-handler.ts";
 import { collectSystemInfo } from "./system-info/info-collector.ts";
 import { createAuditTask } from "./agent/audit-task.ts";
-import { ConversationHistory } from "./agent/history/service.ts";
+import { ContextBuilder } from "./agent/context/builder.ts";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createDiagnoseTask } from "./agent/diagnose-task.ts";
 import { createTerminalTool } from "./agent/tools/terminal.ts";
-import { createFactsStorage } from "./agent/facts/storage.ts";
+import { createFactsStorage } from "./agent/facts/file.ts";
 // LLM adapter encapsulated within agent
 
 /**
@@ -68,13 +68,17 @@ export async function startAgent(): Promise<void> {
   // Initialize agent (encapsulates LLM, history, tools)
   const llmProvider = createOpenAI({ apiKey: config.agent.llm.apiKey });
   const llmModel = llmProvider(config.agent.llm.model);
-  const conversationHistory = new ConversationHistory(config.agent.history.maxSymbols);
+  const contextBuilder = new ContextBuilder(
+    config.agent.history.maxSymbols,
+    systemInfo,
+    factsStorage,
+  );
   const mainAgent = new MainAgent({
     llmModel,
     llmTemperature: config.agent.llm.temperature,
     basePrompt: config.agent.llm.basePrompt,
     terminalTool,
-    conversationHistory,
+    contextBuilder,
     systemInfo,
     factsStorage,
     dataDir: config.agent.dataDir,
@@ -103,13 +107,13 @@ export async function startAgent(): Promise<void> {
   bot.use(createLoggingMiddleware());
 
   // Initialize scheduler
-  healthScheduler.initialize(bot, config, conversationHistory, auditTask, diagnoseTask);
+  healthScheduler.initialize(bot, config, contextBuilder, auditTask, diagnoseTask);
 
   // Setup command router
   const router = new CommandRouter();
 
   // Register commands
-  router.registerCommand(createHistoryResetCommand(conversationHistory));
+  router.registerCommand(createHistoryResetCommand(contextBuilder));
 
   // Setup command handlers
   router.setupHandlers(bot);

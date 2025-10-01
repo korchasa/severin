@@ -1,10 +1,10 @@
 /**
  * Terminal tool adapter with path validation and safe execution
  */
-import type { TerminalRequest, TerminalResponse } from "../../core/types.ts";
+import type { TerminalRequest, TerminalResponse } from "./types.ts";
 import { log } from "../../utils/logger.ts";
 import { sh } from "../../utils/sh.ts";
-import { TerminalRequestSchema } from "../../core/types.ts";
+import { TerminalRequestSchema } from "./types.ts";
 import { tool } from "ai";
 
 export function createTerminalTool(

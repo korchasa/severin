@@ -2,7 +2,7 @@
  * Network latency metrics collector
  */
 
-import type { MetricValue } from "../../core/types.ts";
+import type { MetricValue } from "../types.ts";
 import { sh } from "../../utils/sh.ts";
 
 /**

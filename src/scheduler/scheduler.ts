@@ -11,7 +11,7 @@ import { MetricsAnalyzer } from "../checks/metrics-analyzer.ts";
 import { log } from "../utils/logger.ts";
 import { markdownToTelegramHTML } from "../telegram/telegram-format.ts";
 import { AuditTask } from "../agent/audit-task.ts";
-import { ConversationHistory } from "../agent/history/service.ts";
+import { ContextBuilder } from "../agent/context/builder.ts";
 import { DiagnoseTask } from "../agent/diagnose-task.ts";
 import { yamlDump as _yamlDump } from "../utils/dump.ts";
 
@@ -22,7 +22,7 @@ interface SchedulerState {
   running: Promise<void> | null;
   bot: Bot<Context> | null;
   config: Config | null;
-  history: ConversationHistory | null;
+  history: ContextBuilder | null;
   auditTask: AuditTask | null;
   diagnoseTask: DiagnoseTask | null;
   metricsService: MetricsService | null;
@@ -47,7 +47,7 @@ class HealthScheduler {
   initialize(
     bot: Bot<Context>,
     config: Config,
-    history: ConversationHistory,
+    history: ContextBuilder,
     auditTask: AuditTask,
     diagnoseTask: DiagnoseTask,
   ): void {

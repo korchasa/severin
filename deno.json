@@ -1,6 +1,6 @@
 {
   "lock": { "path": "./deno.lock", "frozen": false },
-  "vendor": false,
+  "vendor": true,
   "nodeModulesDir": "auto",
   "imports": {
     "ai": "npm:ai@^5.0.49",
@@ -11,6 +11,10 @@
     "@std/path": "https://deno.land/std@0.224.0/path/mod.ts",
     "zod": "npm:zod@^4.1.11",
     "yaml": "npm:yaml@^2.3.4"
+  },
+  "compilerOptions": {
+    "noUnusedLocals": true,
+    "noUnusedParameters": true
   },
   "fmt": {
     "lineWidth": 100,

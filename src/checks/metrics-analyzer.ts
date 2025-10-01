@@ -2,7 +2,7 @@
  * Metrics analyzer - handles historical comparison and change detection
  */
 
-import type { MetricValue } from "../core/types.ts";
+import type { MetricValue } from "./types.ts";
 
 /**
  * Represents a significant change in a metric

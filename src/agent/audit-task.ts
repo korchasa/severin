@@ -11,7 +11,7 @@ import { log } from "../utils/logger.ts";
 import type { LanguageModelV2, LanguageModelV2Usage } from "@ai-sdk/provider";
 import { z } from "zod";
 import { SystemInfo } from "../system-info/system-info.ts";
-import { FactsStorage } from "../core/types.ts";
+import { FactsStorage } from "./facts/types.ts";
 
 /**
  * Public interface for the Agent facade.

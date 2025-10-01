@@ -20,7 +20,7 @@ graph TD
   UPD --> AUTH[Auth & Guard]
   AUTH --> RT[Command Router]
   RT --> HND[Handlers]
-  RT --> MEM[History Service]
+  RT --> MEM[ContextBuilder]
   RT --> STAT[Status Aggregator]
 
   subgraph Checks & Scheduler
@@ -32,7 +32,7 @@ graph TD
 
   subgraph Agent Components
     MAIN[MainAgent] --> LLM[LLM Model]
-    MAIN --> MEM[ConversationHistory]
+    MAIN --> MEM[ContextBuilder]
     MAIN --> FACTS[Facts Storage]
     AUDIT[AuditTask] --> LLM
     DIAG[DiagnoseTask] --> LLM
@@ -98,7 +98,7 @@ graph TD
 - **Optional:**
   - `AGENT_DATA_DIR: string` (default `./data`)
   - `LOGGING_FORMAT: string` (default "pretty", or "json")
-  - `AGENT_MEMORY_MAX_MESSAGES: number` (default 200)
+  - `AGENT_MEMORY_MAX_SYMBOLS: number` (default 20000)
   - `AGENT_TERMINAL_TIMEOUT_MS: number` (default 30_000)
   - `AGENT_TERMINAL_MAX_COMMAND_OUTPUT_SIZE: number` (default 200_000)
   - `AGENT_TERMINAL_MAX_LLM_INPUT_LENGTH: number` (default 2000)
@@ -211,16 +211,21 @@ interface CommandDef<A> {
 
 ### 4.4. Handlers Layer
 
-- Thin wrappers, logic in services (History, Status, Scheduler).
-- Text messages: auto LLM processing via `respondToMessage`.
+- Thin wrappers, logic in services (Context, Status, Scheduler).
+- Text messages: auto LLM processing via `processUserQuery`.
 - All responses fit in 1–2 messages; long outputs summarized.
 
-### 4.5. History Service
+### 4.5. Context Builder
 
-- **Format:** In-history array storage.
-- **Records:** `{ type: "msg", role, content, ts }` — messages.
-- **Limit:** max `MEMORY_MAX_MESSAGES` latest messages (truncate head on append).
-- **Operations:** `append`, `tail(n)`, `resetMessages`.
+- **Purpose:** Build recent `ModelMessage[]` within symbol budget and render system prompt from
+  template with system info and facts.
+- **Storage:** In-memory array of simple messages; complex content serialized.
+- **Limits:** `AGENT_MEMORY_MAX_SYMBOLS` — symbol-based trimming from head.
+- **Behavior:**
+  - Append user messages immediately.
+  - Append assistant tool calls/results/text in `appendAgentStep(step)` during `onStepFinish`.
+  - Generate base prompt via template placeholders `{{SERVER_INFO}}`, `{{FACTS}}`.
+  - `reset()` clears context.
 
 ### 4.6. Scheduler + Singleflight
 
@@ -388,7 +393,8 @@ interface Check {
 
 - **Purpose:** Persistent storage for important system facts that can be updated and referenced by
   the LLM for improved contextual awareness and knowledge management.
-- **Storage:** File-based storage in `data/facts.jsonl` using JSONL format for atomic operations.
+- **Storage:** File-based storage in `data/facts.jsonl` using JSONL format for atomic operations
+  (module: `src/agent/facts/file.ts`).
 - **Data Structure:** Each fact contains `id`, `content`, `timestamp` fields with unique
   identifiers.
 - **LLM Tools:**
@@ -629,11 +635,10 @@ sequenceDiagram
 
 ## 6. Data and Formats
 
-### 6.1. History Array
+### 6.1. Context Storage
 
-- In-history storage: `HistoryLine[]`
-- Records: `{ type: "msg", role, content, ts }`
-- Trimming by message count.
+- In-memory storage: simple messages with optional serialized complex content.
+- Trimming by symbol count `AGENT_MEMORY_MAX_SYMBOLS`.
 
 ### 6.2. Audit JSONL (terminal)
 
@@ -731,7 +736,7 @@ sequenceDiagram
 | FR-4 Periodic metrics scheduler                | 4.6 (jitter, singleflight), 5.2 (metrics collection & LLM analysis)                                                  |
 | FR-5 Baseline checks with metrics              | 4.7 (metrics collection with history)                                                                                |
 | FR-6 Intelligent anomaly detection             | 4.8 (LLM-based analysis instead of fixed thresholds)                                                                 |
-| FR-7 In-history conversation history           | 4.5, 6.1 (array storage, limit N, reset, hardcoded base prompt)                                                      |
+| FR-7 Context Builder & in-memory history       | 4.5, 6.1 (symbol limit, reset, prompt templating with system info and facts)                                         |
 | FR-8 Config & secrets                          | 3.1.1, secret masking, createDefaultConfig() domain objects, caching, .env auto-loading                              |
 | FR-9 LLM via Internal Interface                | 4.10–4.11 (type contracts), Telegram Bot API                                                                         |
 | FR-10 Automatic Text Message Processing        | 4.3 (text handler), 5.4 (sequence), filters <2 chars                                                                 |
@@ -867,9 +872,10 @@ TELEGRAM_OWNER_IDS=11111111,22222222
 AGENT_LLM_API_KEY=sk-...
 AGENT_DATA_DIR=/opt/homebot/data
 LOGGING_FORMAT=pretty
-AGENT_MEMORY_MAX_MESSAGES=200
-AGENT_TOOLS_TIMEOUT_MS=30000
-AGENT_TOOLS_MAX_OUTPUT_BYTES=200000
+AGENT_MEMORY_MAX_SYMBOLS=20000
+AGENT_TERMINAL_TIMEOUT_MS=30000
+AGENT_TERMINAL_MAX_COMMAND_OUTPUT_SIZE=200000
+AGENT_TERMINAL_MAX_LLM_INPUT_LENGTH=2000
 AGENT_LLM_PRICE_INPUT_TOKENS=0.15
 AGENT_LLM_PRICE_OUTPUT_TOKENS=0.60
 AGENT_LLM_PRICE_TOTAL_TOKENS=
