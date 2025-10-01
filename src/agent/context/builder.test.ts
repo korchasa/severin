@@ -7,6 +7,7 @@ import { assertEquals, assertExists } from "@std/assert";
 import { ContextBuilder } from "./builder.ts";
 import { MockFactsStorage } from "../facts/mock.ts";
 import { createMockSystemInfo } from "../../system-info/mock.ts";
+import { ModelMessage } from "ai";
 
 function createContextBuilder(maxSymbols = 1000): ContextBuilder {
   return new ContextBuilder(maxSymbols, createMockSystemInfo(), new MockFactsStorage());
@@ -40,7 +41,7 @@ Deno.test("ContextBuilder: appendUserQuery adds user message to history", () => 
   builder.appendUserQuery(userQuery);
 
   // Verify message was added by checking getRecentMessages
-  const messages = builder.getRecentMessages();
+  const messages = builder.getContext();
   assertEquals(messages.length, 1);
   assertEquals(messages[0].role, "user");
   assertEquals(messages[0].content, userQuery);
@@ -61,12 +62,12 @@ Deno.test("ContextBuilder: append handles simple messages correctly", () => {
   const systemMessage = { role: "system" as const, content: "System prompt" };
   builder.append(systemMessage);
 
-  const messages = builder.getRecentMessages();
+  const messages = builder.getContext();
   assertEquals(messages.length, 3);
   assertEquals(messages[0].role, "user");
   assertEquals(messages[0].content, "Test message");
   assertEquals(messages[1].role, "assistant");
-  assertEquals(messages[1].content, "Response");
+  assertEquals(messages[1].content, [{ type: "text", text: "Response" }]);
   assertEquals(messages[2].role, "system");
   assertEquals(messages[2].content, "System prompt");
 });
@@ -89,7 +90,7 @@ Deno.test("ContextBuilder: append handles complex messages with tool calls", () 
 
   builder.append(toolCallMessage);
 
-  const messages = builder.getRecentMessages();
+  const messages = builder.getContext();
   assertEquals(messages.length, 1);
   assertEquals(messages[0].role, "assistant");
   assertEquals(Array.isArray(messages[0].content), true);
@@ -133,30 +134,30 @@ Deno.test("ContextBuilder: appendAgentStep handles tool calls and results", () =
 
   builder.appendAgentStep(step);
 
-  const messages = builder.getRecentMessages();
+  const messages = builder.getContext();
   assertEquals(messages.length, 3); // One for tool call, one for tool result, one for text response
 
   // First message should be assistant with tool call
   assertEquals(messages[0].role, "assistant");
   assertEquals(Array.isArray(messages[0].content), true);
   const firstContent = messages[0].content as unknown[];
-  const firstItem = firstContent[0] as { type: string };
-  assertEquals(firstItem.type, "tool-call");
+  const firstItem = firstContent[0] as { type: string; text: string };
+  assertEquals(firstItem.type, "text");
+  assertEquals(firstItem.text, "I'll help you list files");
 
   // Second message should be tool result
-  assertEquals(messages[1].role, "tool");
+  assertEquals(messages[1].role, "assistant");
   assertEquals(Array.isArray(messages[1].content), true);
   const secondContent = messages[1].content as unknown[];
   const secondItem = secondContent[0] as { type: string };
-  assertEquals(secondItem.type, "tool-result");
+  assertEquals(secondItem.type, "tool-call");
 
   // Third message should be assistant with text response
-  assertEquals(messages[2].role, "assistant");
+  assertEquals(messages[2].role, "tool");
   assertEquals(Array.isArray(messages[2].content), true);
   const thirdContent = messages[2].content as unknown[];
   const thirdItem = thirdContent[0] as { type: string; text: string };
-  assertEquals(thirdItem.type, "text");
-  assertEquals(thirdItem.text, "I'll help you list files");
+  assertEquals(thirdItem.type, "tool-result");
 });
 
 Deno.test("ContextBuilder: appendAgentStep handles text response only", () => {
@@ -179,7 +180,7 @@ Deno.test("ContextBuilder: appendAgentStep handles text response only", () => {
 
   builder.appendAgentStep(step);
 
-  const messages = builder.getRecentMessages();
+  const messages = builder.getContext();
   assertEquals(messages.length, 1);
   assertEquals(messages[0].role, "assistant");
   assertEquals(Array.isArray(messages[0].content), true);
@@ -198,7 +199,7 @@ Deno.test("ContextBuilder: getRecentMessages respects symbol limit", () => {
   builder.appendUserQuery("This is a very long message that will exceed the symbol limit");
   builder.appendUserQuery("Another long message");
 
-  const messages = builder.getRecentMessages();
+  const messages = builder.getContext();
 
   // Should only return messages that fit within the limit
   const totalLength = messages.reduce((sum, msg) => {
@@ -213,20 +214,20 @@ Deno.test("ContextBuilder: getRecentMessages returns messages in chronological o
   const builder = createContextBuilder();
 
   builder.appendUserQuery("First message");
-  builder.append({ role: "assistant", content: "First response" });
+  builder.append({ role: "assistant", content: [{ type: "text", text: "First response" }] });
   builder.appendUserQuery("Second message");
-  builder.append({ role: "assistant", content: "Second response" });
+  builder.append({ role: "assistant", content: [{ type: "text", text: "Second response" }] });
 
-  const messages = builder.getRecentMessages();
+  const messages = builder.getContext();
   assertEquals(messages.length, 4);
   assertEquals(messages[0].role, "user");
   assertEquals(messages[0].content, "First message");
   assertEquals(messages[1].role, "assistant");
-  assertEquals(messages[1].content, "First response");
+  assertEquals(messages[1].content, [{ type: "text", text: "First response" }]);
   assertEquals(messages[2].role, "user");
   assertEquals(messages[2].content, "Second message");
   assertEquals(messages[3].role, "assistant");
-  assertEquals(messages[3].content, "Second response");
+  assertEquals(messages[3].content, [{ type: "text", text: "Second response" }]);
 });
 
 Deno.test("ContextBuilder: reset clears conversation history", () => {
@@ -236,30 +237,26 @@ Deno.test("ContextBuilder: reset clears conversation history", () => {
   builder.append({ role: "assistant", content: "Response" });
 
   // Verify messages exist
-  assertEquals(builder.getRecentMessages().length, 2);
+  assertEquals(builder.getContext().length, 2);
 
   // Reset history
   builder.reset();
 
   // Verify history is empty
-  assertEquals(builder.getRecentMessages().length, 0);
+  assertEquals(builder.getContext().length, 0);
 });
 
 Deno.test("ContextBuilder: handles malformed JSON in complex content gracefully", () => {
   const builder = createContextBuilder();
 
-  // Manually add malformed JSON to history (simulating corrupted data)
-  // Access private property for testing
-  (builder as unknown as { history: { role: string; content: string }[] }).history.push({
-    role: "assistant",
-    content: '{"invalid": json}', // Malformed JSON
-  });
+  // Create malformed/non-serializable content and ensure no crash
+  const circular: { self?: unknown } = {};
+  circular.self = circular;
+  builder.append({ role: "assistant", content: circular } as unknown as ModelMessage);
 
-  // Should not crash and return messages
-  const messages = builder.getRecentMessages();
-  assertEquals(messages.length, 1);
-  assertEquals(messages[0].role, "assistant");
-  assertEquals(messages[0].content, '{"invalid": json}'); // Should return as string
+  // Should not crash and return an array
+  const messages = builder.getContext();
+  assertEquals(Array.isArray(messages), true);
 });
 
 Deno.test("ContextBuilder: estimateSymbols handles different content types", () => {

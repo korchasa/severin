@@ -150,7 +150,9 @@ export class MainAgent implements MainAgentAPI {
 
     try {
       // Stream agent response
-      const stream = agent.stream({ messages: this.contextBuilder.getRecentMessages() });
+      const context = this.contextBuilder.getContext();
+      console.log(">>> context", context);
+      const stream = agent.stream({ messages: context });
 
       // Helper types for strict typing
       type ToolResultStreamPart = {

@@ -120,9 +120,11 @@
 - **Use case:** Context evolves on interaction; owner resets via `/reset`; LLM consumes recent
   context.
 - **Criteria:**
-  - Stores simple/complex messages; limits by total symbols `AGENT_MEMORY_MAX_SYMBOLS` (default
-    20000).
-  - Appends user messages immediately; appends assistant/tool messages per-step (`onStepFinish`).
+  - Stores SDK-agnostic Event[] (user, assistant, system, tool-call, tool-result); limits by total
+    symbols `AGENT_MEMORY_MAX_SYMBOLS` (default 20000).
+  - `appendUserQuery()` adds user messages immediately; `appendAgentStep()` records tool operations
+    and responses.
+  - `getContext()` builds ModelMessage[] view with grouped tool-calls and chronological order.
   - System prompt generated from template with placeholders replaced: `{{SERVER_INFO}}`,
     `{{FACTS}}`.
   - Reset clears context via `/reset`.

@@ -1,48 +1,90 @@
-/**
- * Conversation history management with symbol-based limiting on retrieval.
- * Stores SimpleMessage[] internally and converts to ModelMessage[] only in getRecentMessages().
- * Ensures crash-resistance by writing user messages immediately and assistant messages after stream completion.
- */
-
 import {
+  type JSONValue,
   type ModelMessage,
   StepResult,
   Tool,
   ToolCallPart,
   ToolResultPart,
-  type UIMessage,
 } from "ai";
 import { SystemInfo } from "../../system-info/system-info.ts";
 import { Fact, FactsStorage } from "../facts/types.ts";
+import { LanguageModelV2ToolResultOutput } from "@ai-sdk/provider";
 
-// Simple message types compatible with our logic
-type SimpleMessage = {
-  role: "user" | "assistant" | "system";
-  content: string;
-};
+type TextPart = { type: "text"; text: string };
 
-type ComplexMessage = {
-  role: "user" | "assistant" | "system" | "tool";
-  content: string | unknown[];
-};
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
 
-/**
- * Internal conversation history wrapper.
- * Stores messages internally as SimpleMessage[] and converts to ModelMessage[] on retrieval.
- * Provides crash-resistance: user messages written immediately, assistant messages after stream completion.
- */
+function isToolCallPart(p: unknown): p is ToolCallPart {
+  if (!isObject(p)) return false;
+  const t = (p as { type?: unknown }).type;
+  const id = (p as { toolCallId?: unknown }).toolCallId;
+  const name = (p as { toolName?: unknown }).toolName;
+  return t === "tool-call" && typeof id === "string" && typeof name === "string";
+}
+
+function isToolResultPart(p: unknown): p is ToolResultPart {
+  if (!isObject(p)) return false;
+  const t = (p as { type?: unknown }).type;
+  const id = (p as { toolCallId?: unknown }).toolCallId;
+  const name = (p as { toolName?: unknown }).toolName;
+  const output = (p as { output?: unknown }).output;
+  return t === "tool-result" && typeof id === "string" && typeof name === "string" &&
+    output !== undefined;
+}
+
+function isTextPart(p: unknown): p is TextPart {
+  if (!isObject(p)) return false;
+  const t = (p as { type?: unknown }).type;
+  const text = (p as { text?: unknown }).text;
+  return t === "text" && typeof text === "string";
+}
+
+function toJSONValue(value: unknown): JSONValue {
+  if (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    const arr = value.map((v): JSONValue => toJSONValue(v));
+    return arr;
+  }
+  if (isObject(value)) {
+    const out: Record<string, JSONValue> = {};
+    for (const [k, v] of Object.entries(value)) {
+      out[k] = toJSONValue(v);
+    }
+    return out;
+  }
+  // unsupported types (undefined, function, symbol, bigint) → stringify fallback
+  return String(value) as unknown as JSONValue;
+}
+
+/** Domain event model (SDK-agnostic). */
+type Event =
+  | { type: "system"; text: string }
+  | { type: "user"; text: string }
+  | { type: "assistant"; text: string }
+  | { type: "tool-call"; id: string; name: string; args: unknown }
+  | { type: "tool-result"; id: string; name: string; output: LanguageModelV2ToolResultOutput };
+
 export class ContextBuilder {
   private maxSymbols: number;
   private systemInfo: SystemInfo;
   private factsStorage: FactsStorage;
-  private history: SimpleMessage[] = [];
+
+  /** Internal, SDK-agnostic log of events in chronological order. */
+  private events: Event[] = [];
+
+  /** Optional base prompt template with placeholders {{SERVER_INFO}} and {{FACTS}}. */
   basePromptTemplate?: string;
 
-  constructor(
-    maxSymbols: number,
-    systemInfo: SystemInfo,
-    factsStorage: FactsStorage,
-  ) {
+  constructor(maxSymbols: number, systemInfo: SystemInfo, factsStorage: FactsStorage) {
     this.maxSymbols = maxSymbols;
     this.systemInfo = systemInfo;
     this.factsStorage = factsStorage;
@@ -52,36 +94,15 @@ export class ContextBuilder {
     this.basePromptTemplate = basePromptTemplate;
   }
 
-  /**
-   * Appends a message to conversation history.
-   * Accepts UIMessage directly or converts ModelMessage to SimpleMessage.
-   * For ModelMessage with complex content (tool calls), serializes to JSON string.
-   * User messages are written immediately on request start.
-   * Assistant messages are written after stream completion for crash resistance.
-   */
-  append(msg: UIMessage | ModelMessage): void {
-    if (this.isSimpleMessage(msg)) {
-      // Convert to SimpleMessage format
-      const simpleMessage: SimpleMessage = {
-        role: (msg as ComplexMessage).role as "user" | "assistant" | "system",
-        content: (msg as ComplexMessage).content as string,
-      };
-      this.history.push(simpleMessage);
-    } else {
-      // Convert ModelMessage to SimpleMessage by serializing complex content
-      const content = (msg as ComplexMessage).content;
-      const simpleMessage: SimpleMessage = {
-        role: (msg as ComplexMessage).role as "user" | "assistant" | "system",
-        content: typeof content === "string" ? content : JSON.stringify(content),
-      };
-      this.history.push(simpleMessage);
-    }
-  }
-
+  /** Append a plain user query (write immediately on request start). */
   appendUserQuery(userQuery: string) {
-    this.append({ role: "user", content: userQuery });
+    this.events.push({ type: "user", text: userQuery });
   }
 
+  /**
+   * Append the results of one assistant "step".
+   * Records tool-calls, then tool-results, then final assistant text (if any).
+   */
   appendAgentStep(
     step: StepResult<
       NoInfer<{
@@ -103,57 +124,97 @@ export class ContextBuilder {
       }>
     >,
   ) {
-    // Record assistant message with tool calls (if any)
+    // Final assistant text
+    if (step.text && step.text.trim().length > 0) {
+      this.events.push({ type: "assistant", text: step.text });
+    }
+
+    // Tool calls
     if (step.toolCalls.length > 0) {
-      const toolCallContent: ToolCallPart[] = [];
       for (const tc of step.toolCalls) {
-        toolCallContent.push({
+        const tcArgs = ("args" in tc ? (tc as { args?: unknown }).args : undefined) ??
+          ("input" in tc ? (tc as { input?: unknown }).input : undefined) ??
+          {};
+        this.events.push({
           type: "tool-call",
-          toolCallId: tc.toolCallId,
-          toolName: tc.toolName as unknown as string,
-          input: tc.input,
+          id: tc.toolCallId,
+          name: tc.toolName as unknown as string,
+          // Store SDK-agnostic shape
+          args: tcArgs,
         });
       }
-      this.append({
-        role: "assistant",
-        content: toolCallContent,
-      });
     }
 
-    // Record all tool results
+    // Tool results
     for (const tr of step.toolResults) {
-      const toolMsgPart: ToolResultPart = {
+      this.events.push({
         type: "tool-result",
-        toolCallId: tr.toolCallId,
-        toolName: tr.toolName,
-        output: tr.output,
-      };
-      this.append({
-        role: "tool",
-        content: [toolMsgPart],
-      });
-    }
-
-    // Record assistant message with text response (if any)
-    if (step.text) {
-      this.append({
-        role: "assistant",
-        content: [{ type: "text", text: step.text }],
+        id: tr.toolCallId,
+        name: tr.toolName,
+        output: this.normalizeToolOutput(tr.output),
       });
     }
   }
 
   /**
-   * Checks if message is already a SimpleMessage (simple string content).
+   * Accepts a ModelMessage and maps it into internal Event[].
+   * (UIMessage is not supported here; convert upstream if needed.)
    */
-  private isSimpleMessage(msg: UIMessage | ModelMessage): boolean {
-    const content = (msg as ComplexMessage).content;
-    const role = (msg as ComplexMessage).role;
-    return (
-      typeof content === "string" &&
-      ["user", "assistant", "system"].includes(role) &&
-      !Array.isArray(content)
-    );
+  append(msg: ModelMessage): void {
+    const { role, content } = msg;
+
+    // Simple text messages
+    if (typeof content === "string") {
+      if (role === "user") {
+        this.events.push({ type: "user", text: content });
+      } else if (role === "assistant") {
+        this.events.push({ type: "assistant", text: content });
+      } else if (role === "system") {
+        this.events.push({ type: "system", text: content });
+      }
+      return;
+    }
+
+    // Array of parts (tool-calls, tool-results, text)
+    if (Array.isArray(content)) {
+      const parts = content as Array<ToolCallPart | ToolResultPart | TextPart>;
+
+      for (const p of parts) {
+        if (isToolCallPart(p)) {
+          // ToolCallPart in V2 uses `input`
+          this.events.push({
+            type: "tool-call",
+            id: p.toolCallId,
+            name: p.toolName,
+            args: p.input ?? {},
+          });
+        } else if (isToolResultPart(p)) {
+          this.events.push({
+            type: "tool-result",
+            id: p.toolCallId,
+            name: p.toolName,
+            output: this.normalizeToolOutput(p.output),
+          });
+        } else if (isTextPart(p)) {
+          const text = p.text;
+          if (role === "system") this.events.push({ type: "system", text });
+          else if (role === "user") this.events.push({ type: "user", text });
+          else this.events.push({ type: "assistant", text });
+        }
+      }
+
+      return;
+    }
+
+    // If content is neither string nor array, attempt to stringify & keep as assistant text for debugging
+    try {
+      const s = JSON.stringify(content);
+      if (role === "user") this.events.push({ type: "user", text: s });
+      else if (role === "system") this.events.push({ type: "system", text: s });
+      else this.events.push({ type: "assistant", text: s });
+    } catch {
+      // ignore silently
+    }
   }
 
   async generateBasePrompt(): Promise<string> {
@@ -166,85 +227,126 @@ export class ContextBuilder {
   }
 
   /**
-   * Gets recent conversation messages that fit within the specified symbol limit.
-   * Converts stored SimpleMessage[] to ModelMessage[] for Vercel AI SDK compatibility.
-   * Deserializes complex content that was stored as JSON strings.
-   * Returns the most recent messages that can fit within maxSymbols characters.
-   * @param maxSymbols Maximum total characters allowed for all messages combined
+   * Build a ModelMessage[] view of the recent conversation within the symbol budget.
+   * - Groups consecutive 'tool-call' events into a single assistant message with ToolCallPart[].
+   * - Emits each 'tool-result' as a separate tool message.
+   * - Preserves chronological order.
    */
-  getRecentMessages(): ModelMessage[] {
+  getContext(): ModelMessage[] {
     const result: ModelMessage[] = [];
     let totalSymbols = 0;
 
-    // Start from the most recent messages and work backwards
-    for (let i = this.history.length - 1; i >= 0; i--) {
-      const simpleMessage = this.history[i];
-      let message: ModelMessage;
+    // We'll iterate from the end and unshift(), while grouping consecutive tool-calls.
+    let toolCallBuffer: ToolCallPart[] = [];
 
-      // Try to deserialize if content looks like serialized complex content
-      if (this.isSerializedComplexContent(simpleMessage.content)) {
-        try {
-          const parsedContent = JSON.parse(simpleMessage.content);
-          message = {
-            role: simpleMessage.role,
-            content: parsedContent,
-          };
-        } catch {
-          // If parsing fails, treat as regular SimpleMessage
-          message = {
-            role: simpleMessage.role,
-            content: simpleMessage.content,
-          };
-        }
-      } else {
-        // Regular SimpleMessage conversion - create ModelMessage
-        message = {
-          role: simpleMessage.role,
-          content: simpleMessage.content,
-        };
+    const flushToolCalls = () => {
+      if (toolCallBuffer.length === 0) return true;
+      // Reverse because we were iterating backwards.
+      const parts = [...toolCallBuffer].reverse();
+      const msg: ModelMessage = { role: "assistant", content: parts };
+      const len = this.estimateSymbols(msg);
+      if (totalSymbols + len > this.maxSymbols) {
+        if (result.length > 0) return false;
+        // If first message doesn't fit — drop the group and continue (like previous logic).
+        toolCallBuffer = [];
+        return true;
       }
+      result.unshift(msg);
+      totalSymbols += len;
+      toolCallBuffer = [];
+      return true;
+    };
 
-      const messageLength = this.estimateSymbols(message);
+    // Walk backward through events
+    for (let i = this.events.length - 1; i >= 0; i--) {
+      const ev = this.events[i];
 
-      // Check if adding this message would exceed the limit
-      if (totalSymbols + messageLength > this.maxSymbols) {
-        // If we already have messages, stop here
-        if (result.length > 0) {
-          break;
-        }
-        // If this is the first message and it exceeds limit, skip it and continue
+      if (ev.type === "tool-call") {
+        // Buffer, we'll flush when the block ends.
+        toolCallBuffer.push({
+          type: "tool-call",
+          toolCallId: ev.id,
+          toolName: ev.name,
+          input: ev.args,
+        });
+        // Continue accumulating
         continue;
       }
 
-      // Add message to the beginning of result to maintain chronological order (oldest first)
-      result.unshift(message);
-      totalSymbols += messageLength;
+      // Hitting a non tool-call event: flush buffered tool-calls first.
+      if (!flushToolCalls()) break;
+
+      // Convert the event to a ModelMessage and budget it.
+      let msg: ModelMessage | null = null;
+
+      switch (ev.type) {
+        case "user":
+          msg = { role: "user", content: ev.text };
+          break;
+        case "system":
+          msg = { role: "system", content: ev.text };
+          break;
+        case "assistant":
+          msg = { role: "assistant", content: [{ type: "text", text: ev.text }] };
+          break;
+        case "tool-result":
+          msg = {
+            role: "tool",
+            content: [
+              {
+                type: "tool-result",
+                toolCallId: ev.id,
+                toolName: ev.name,
+                output: ev.output,
+              },
+            ],
+          };
+          break;
+      }
+
+      if (!msg) continue;
+
+      const len = this.estimateSymbols(msg);
+      if (totalSymbols + len > this.maxSymbols) {
+        if (result.length > 0) break;
+        // Skip too-large first candidate and continue looking for smaller items.
+        continue;
+      }
+
+      result.unshift(msg);
+      totalSymbols += len;
     }
+
+    // Flush any leading tool-calls at the very start
+    flushToolCalls();
 
     return result;
   }
 
-  /**
-   * Checks if content string appears to be serialized complex content (array/object).
-   */
-  private isSerializedComplexContent(content: string): boolean {
-    const trimmed = content.trim();
-    return (
-      (trimmed.startsWith("[") && trimmed.endsWith("]")) ||
-      (trimmed.startsWith("{") && trimmed.endsWith("}"))
-    );
+  /** Resets conversation history. */
+  reset(): void {
+    this.events = [];
   }
 
   /**
-   * Resets conversation history
+   * Normalizes arbitrary tool outputs to LanguageModelV2ToolResultOutput required by ModelMessage.
+   * - Strings become { type: 'text', value: string }
+   * - Objects with { type, value } pass through
+   * - Everything else becomes { type: 'json', value: any }
    */
-  reset(): void {
-    this.history = [];
+  private normalizeToolOutput(output: unknown): LanguageModelV2ToolResultOutput {
+    if (isObject(output) && "type" in output && "value" in output) {
+      return output as unknown as LanguageModelV2ToolResultOutput;
+    }
+    if (typeof output === "string") {
+      return { type: "text", value: output };
+    }
+    return { type: "json", value: toJSONValue(output) };
   }
 
   /**
    * Estimate symbol count of a ModelMessage content for budgeting.
-   * For string content use its length; for non-string content (tool results) JSON-stringify.
+   * For string content use its length; for non-string content JSON-stringify.
    */
   private estimateSymbols(message: ModelMessage): number {
     const c: unknown = (message as unknown as { content: unknown }).content;

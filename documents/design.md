@@ -219,11 +219,14 @@ interface CommandDef<A> {
 
 - **Purpose:** Build recent `ModelMessage[]` within symbol budget and render system prompt from
   template with system info and facts.
-- **Storage:** In-memory array of simple messages; complex content serialized.
+- **Storage:** In-memory Event[] log (SDK-agnostic events: user, assistant, system, tool-call,
+  tool-result).
 - **Limits:** `AGENT_MEMORY_MAX_SYMBOLS` — symbol-based trimming from head.
 - **Behavior:**
-  - Append user messages immediately.
-  - Append assistant tool calls/results/text in `appendAgentStep(step)` during `onStepFinish`.
+  - `appendUserQuery()` adds user messages immediately.
+  - `appendAgentStep()` records tool-calls, tool-results, final assistant text.
+  - `append()` maps ModelMessage to internal Event[].
+  - `getContext()` builds ModelMessage[] view with grouped tool-calls and chronological order.
   - Generate base prompt via template placeholders `{{SERVER_INFO}}`, `{{FACTS}}`.
   - `reset()` clears context.
 
@@ -637,7 +640,8 @@ sequenceDiagram
 
 ### 6.1. Context Storage
 
-- In-memory storage: simple messages with optional serialized complex content.
+- In-memory Event[]: SDK-agnostic events (user, assistant, system, tool-call, tool-result).
+- `getContext()` builds ModelMessage[] view with chronological order and grouped tool-calls.
 - Trimming by symbol count `AGENT_MEMORY_MAX_SYMBOLS`.
 
 ### 6.2. Audit JSONL (terminal)
