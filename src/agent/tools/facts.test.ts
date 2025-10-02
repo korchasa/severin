@@ -5,7 +5,7 @@
 
 import { assertEquals, assertExists } from "@std/assert";
 import { createAddFactTool, createDeleteFactTool, createUpdateFactTool } from "./facts.ts";
-import type { FactsStorage } from "../../core/types.ts";
+import type { FactsStorage } from "../facts/types.ts";
 
 // Mock facts storage for testing
 class MockFactsStorage {

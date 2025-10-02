@@ -16,7 +16,7 @@ Telegram-based Home Server Agent (PoC) - reliable and maintainable bot for serve
 ## Quick Start
 
 ```bash
-# Run checks(formatting, linting, tests)
+# Run checks (formatting, linting, tests)
 ./run check
 
 # Install dependencies and start application
@@ -40,10 +40,10 @@ Set environment variables:
 
 - `AGENT_DATA_DIR` - directory for storing data files (default: "./data")
 - `LOGGING_FORMAT` - log output format: "pretty" or "json" (default: "pretty")
-- `AGENT_MEMORY_MAX_SYMBOLS` - maximum total symbols to store in conversation history
-  (default: 20000)
-- `AGENT_TOOLS_TIMEOUT_MS` - timeout for tool execution in milliseconds (default: 30000)
-- `AGENT_TOOLS_MAX_OUTPUT_BYTES` - maximum output size for tools in bytes (default: 200000)
+- `AGENT_MEMORY_MAX_SYMBOLS` - maximum total symbols in context (default: 20000)
+- `AGENT_TERMINAL_TIMEOUT_MS` - terminal tool timeout in milliseconds (default: 30000)
+- `AGENT_TERMINAL_MAX_COMMAND_OUTPUT_SIZE` - max stdout size for terminal tool (default: 200000)
+- `AGENT_TERMINAL_MAX_LLM_INPUT_LENGTH` - input length limit for terminal tool (default: 2000)
 - `RATE_LIMIT_REQUEST_INTERVAL_MS` - minimum interval between user requests in milliseconds
   (default: 5000)
 - `SCHEDULER_INTERVAL_HOURS` - hours between health checks (default: 1)
@@ -51,7 +51,7 @@ Set environment variables:
 
 ## Bot Commands
 
-- `/reset` - reset history
+- `/reset` - reset context
 
 ## Architecture
 
@@ -61,6 +61,8 @@ Set environment variables:
 - **zod** for data validation
 - **Vercel AI SDK** for LLM integration with tool calls
 - **File storage** for simplicity (JSONL)
+  - Facts storage module: `src/agent/facts/file.ts`
+  - Context building: `src/agent/context/builder.ts` (symbol-limited + prompt templating)
 - **AbortController-based timeouts** for terminal tool execution
 
 ## Documentation

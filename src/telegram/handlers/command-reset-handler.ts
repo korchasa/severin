@@ -3,12 +3,12 @@
  */
 
 import { z } from "zod";
-import type { CommandDef } from "../../core/types.ts";
-import type { ConversationHistory } from "../../agent/history/service.ts";
+import type { CommandDef } from "../types.ts";
+import type { ContextBuilder } from "../../agent/context/builder.ts";
 import { log } from "../../utils/logger.ts";
 
 export function createHistoryResetCommand(
-  history: ConversationHistory,
+  history: ContextBuilder,
 ): CommandDef<{ text?: string }> {
   return {
     name: "reset",

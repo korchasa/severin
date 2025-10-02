@@ -1,17 +1,11 @@
 /**
  * Terminal tool adapter with path validation and safe execution
  */
-import type { TerminalRequest, TerminalResponse } from "../../core/types.ts";
+import type { TerminalRequest, TerminalResponse } from "./types.ts";
 import { log } from "../../utils/logger.ts";
-import * as z from "zod";
-import { tool } from "ai";
 import { sh } from "../../utils/sh.ts";
-
-export const TerminalParams = z.object({
-  command: z.string().min(1, "command is required"),
-  cwd: z.string().optional(),
-  reason: z.string().min(1, "reason is required"),
-});
+import { TerminalRequestSchema } from "./types.ts";
+import { tool } from "ai";
 
 export function createTerminalTool(
   timeoutMs: number,
@@ -20,20 +14,10 @@ export function createTerminalTool(
 ) {
   return tool({
     description: "Execute shell commands safely with validation and limits",
-    inputSchema: TerminalParams,
-    execute: async (input: z.infer<typeof TerminalParams>): Promise<TerminalResponse> => {
-      // Log terminal tool usage
-      log({
-        mod: "llm",
-        event: "llm_tool_execution",
-        tool: "terminal",
-        command: input.command,
-        cwd: input.cwd,
-        reason: input.reason,
-      });
-
+    inputSchema: TerminalRequestSchema,
+    execute: async (request: TerminalRequest): Promise<TerminalResponse> => {
       const res = await executeTerminal(
-        { command: input.command, cwd: input.cwd, reason: input.reason },
+        request,
         timeoutMs,
         maxCommandOutputSize,
         maxLLMInputLength,

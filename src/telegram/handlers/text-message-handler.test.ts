@@ -5,13 +5,13 @@
 
 import { assert } from "@std/assert";
 import { createTextMessageHandler } from "./text-message-handler.ts";
-import type { MainAgent } from "../../agent/agent.ts";
+import type { MainAgent } from "../../agent/main-agent.ts";
 import type { Config } from "../../config/types.ts";
 
 // Mock dependencies
-const mockAgent: MainAgent = {
+const mockAgent = {
   processUserQuery: () => Promise.resolve({ text: "Mock response" }),
-};
+} as unknown as MainAgent;
 
 const mockConfig: Config = {
   agent: {
@@ -43,9 +43,6 @@ const mockConfig: Config = {
     sensitiveCollectionDelayMs: 3000,
   },
 };
-
-// Mock LLM response for reference
-const _mockLLMResponse = "Mock LLM response";
 
 Deno.test("text message handler: ignores very short messages", async () => {
   const handler = createTextMessageHandler(mockAgent, mockConfig);
@@ -103,7 +100,6 @@ Deno.test("text message handler: does not send empty LLM responses", async () =>
     },
   ) => {
     const text = ctx.message?.text?.trim();
-    const _userId = ctx.from?.id;
 
     // Skip validation checks for this test
     if (!text || text.length < 2 || text.startsWith("/")) {

@@ -3,7 +3,7 @@
  * Provides add_fact, delete_fact, update_fact tools for managing persistent facts
  */
 
-import type { FactsStorage } from "../../core/types.ts";
+import type { FactsStorage } from "../facts/types.ts";
 import * as z from "zod";
 import { tool } from "ai";
 

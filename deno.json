@@ -12,6 +12,13 @@
     "zod": "npm:zod@^4.1.11",
     "yaml": "npm:yaml@^2.3.4"
   },
+  "compilerOptions": {
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noImplicitOverride": true
+  },
   "fmt": {
     "lineWidth": 100,
     "indentWidth": 2,

@@ -2,7 +2,7 @@
  * Checks engine - coordinates all system health checks
  */
 
-import type { MetricValue } from "../core/types.ts";
+import type { MetricValue } from "./types.ts";
 import type { Config } from "../config/config.ts";
 import { regularCollectors, sensitiveCollectors } from "./metrics/index.ts";
 import { log } from "../utils/logger.ts";
@@ -48,9 +48,9 @@ export async function runAllChecksForMetrics(_config: Config): Promise<MetricVal
       totalSuccessCount++;
     } catch (error) {
       const duration = performance.now() - startTime;
-      console.error(`Sensitive collector ${collector.constructor.name} failed:`, error);
       log({
         mod: "checks",
+        level: "error",
         event: "collector_error",
         collector: collector.constructor.name,
         phase: "sensitive",
@@ -85,9 +85,10 @@ export async function runAllChecksForMetrics(_config: Config): Promise<MetricVal
       return { success: true, metrics };
     } catch (error) {
       const duration = performance.now() - startTime;
-      console.error(`Regular collector ${collector.constructor.name} failed:`, error);
       log({
         mod: "checks",
+        level: "error",
+        message: `Regular collector ${collector.constructor.name} failed`,
         event: "collector_error",
         collector: collector.constructor.name,
         phase: "regular",

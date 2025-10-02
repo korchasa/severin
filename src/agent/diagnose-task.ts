@@ -12,7 +12,7 @@ import {
 } from "ai";
 import { stopTool } from "./tools/stop.ts";
 import { SystemInfo } from "../system-info/system-info.ts";
-import { FactsStorage } from "../core/types.ts";
+import { FactsStorage } from "./facts/types.ts";
 import { AuditSummary } from "./audit-task.ts";
 import { sumUsages } from "../llm/cost.ts";
 
