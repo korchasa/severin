@@ -18,6 +18,7 @@ export class ContextBuilder {
 
   /**
    * Direct addition of ModelMessage (e.g., system message or arbitrary assistant message).
+   * UIMessage is not supported; only ModelMessage should be used.
    */
   append(msg: ModelMessage): void {
     this.messages.push(msg);
