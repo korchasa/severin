@@ -230,7 +230,7 @@
 
 ### ✅ FR-16 LLM Cost Calculation
 
-- **Description:** Agent calculates and tracks costs of LLM usage via `CostCalculator` class based on configurable token prices for cost monitoring and optimization.
+- **Description:** Agent calculates and tracks costs of LLM usage via `CostCalculator` (interface + factory) based on configurable token prices for cost monitoring and optimization.
 - **Use case:** Monitor LLM usage costs across different operations (conversations, metrics analysis, diagnostics) for budget control and efficiency analysis.
 - **Criteria:**
   - Support for all token types from `LanguageModelV2Usage`: `inputTokens`, `outputTokens`, `totalTokens`, `reasoningTokens`, `cachedInputTokens`.
