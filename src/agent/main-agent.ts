@@ -163,9 +163,6 @@ export class MainAgent implements MainAgentAPI {
       });
       const { fullStream, text, totalUsage } = agent.stream({ messages: messages });
 
-      let preToolBuffer = "";
-      let visibleBuffer = "";
-      let seenTool = false;
       const pendingToolCalls: Array<{
         toolCallId: string;
         toolName: ToolName;
