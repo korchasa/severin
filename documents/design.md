@@ -220,13 +220,25 @@ interface CommandDef<A> {
 - **Purpose:** Build recent `ModelMessage[]` within symbol budget and render system prompt from
   template with system info and facts.
 - **Storage:** In-memory ModelMessage[] array with chronological order.
-- **Limits:** `AGENT_MEMORY_MAX_SYMBOLS` — symbol-based trimming from head.
+- **Limits:** `AGENT_MEMORY_MAX_SYMBOLS` — delegated to ContextCompactor for symbol-based trimming.
 - **Behavior:**
   - `append()` adds messages directly (system, user, assistant, tool).
   - `appendStepMessages()` adds messages from LLM step responses with deduplication by content hash.
   - `getContext()` returns `{systemPrompt, messages}` with recent context within symbol budget.
   - System prompt generated from template with placeholders `{{SERVER_INFO}}`, `{{FACTS}}`.
   - `reset()` clears context.
+- **Dependencies:** Uses `ContextCompactor` for message trimming and consistency checks.
+
+### 4.5.1. Context Compactor
+
+- **Purpose:** Handle message trimming and tool-call/tool-result consistency validation.
+- **Responsibility:** Pure function for compacting ModelMessage[] arrays.
+- **Behavior:**
+  - `compact(messages)`: Applies symbol-based trimming followed by consistency validation.
+  - **Tool-call/tool-result consistency:** Ensures that if a tool-result message is included in the
+    final context, its corresponding tool-call message is also included, and vice versa. Prevents
+    orphaned tool results or tool calls that reference non-existent results.
+  - Symbol trimming starts from most recent messages (end of array) and works backwards.
 
 ### 4.6. Scheduler + Singleflight
 

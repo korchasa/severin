@@ -1,23 +1,24 @@
 import { type ModelMessage } from "ai";
 import { SystemInfo } from "../../system-info/system-info.ts";
 import { FactsStorage } from "../facts/types.ts";
+import { ContextCompactor, SimpleContextCompactor } from "./compactor.ts";
 
 export class ContextBuilder {
-  private maxSymbols: number;
   private systemInfo: SystemInfo;
   private factsStorage: FactsStorage;
+  private compactor: ContextCompactor;
   /** Message history in AI SDK format (chronologically from beginning to end). */
   private messages: ModelMessage[] = [];
 
   constructor(maxSymbols: number, systemInfo: SystemInfo, factsStorage: FactsStorage) {
-    this.maxSymbols = maxSymbols;
     this.systemInfo = systemInfo;
     this.factsStorage = factsStorage;
+    this.compactor = new SimpleContextCompactor(maxSymbols);
   }
 
   /**
    * Direct addition of ModelMessage (e.g., system message or arbitrary assistant message).
-   * UIMessage is not supported here — convert beforehand if needed.
+   * UIMessage is not supported; only ModelMessage should be used.
    */
   append(msg: ModelMessage): void {
     this.messages.push(msg);
@@ -68,7 +69,7 @@ export class ContextBuilder {
 
   /**
    * Returns a "window" of recent context within the symbol budget.
-   * Messages are taken from the end of history and added to the beginning of the result until budget overflow.
+   * Uses ContextCompactor to trim messages and ensure tool-call/tool-result consistency.
    */
   async getContext(
     systemPromptTemplate: string,
@@ -76,39 +77,14 @@ export class ContextBuilder {
     const systemPrompt = systemPromptTemplate
       .replace("{{SERVER_INFO}}", this.systemInfo.toMarkdown())
       .replace("{{FACTS}}", await this.factsStorage.toMarkdown());
-    const out: ModelMessage[] = [];
-    let total = 0;
 
-    for (let i = this.messages.length - 1; i >= 0; i--) {
-      const msg = this.messages[i];
-      const len = this.estimateSymbols(msg);
+    const compactedMessages = this.compactor.compact(this.messages);
 
-      if (total + len > this.maxSymbols) {
-        if (out.length > 0) break; // already have something — finish
-        // first candidate message is too large by itself — skip and continue
-        continue;
-      }
-
-      out.unshift(msg);
-      total += len;
-    }
-
-    return { systemPrompt, messages: out };
+    return { systemPrompt, messages: compactedMessages };
   }
 
   /** Complete history cleanup. */
   reset(): void {
     this.messages = [];
-  }
-
-  /** Estimate message "weight" by length of JSON representation of content. */
-  private estimateSymbols(message: ModelMessage): number {
-    const c: unknown = (message as unknown as { content: unknown }).content;
-    if (typeof c === "string") return c.length;
-    try {
-      return JSON.stringify(c ?? "").length;
-    } catch {
-      return 0;
-    }
   }
 }
