@@ -13,8 +13,11 @@
     "yaml": "npm:yaml@^2.3.4"
   },
   "compilerOptions": {
+    "strict": true,
     "noUnusedLocals": true,
-    "noUnusedParameters": true
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noImplicitOverride": true
   },
   "fmt": {
     "lineWidth": 100,
