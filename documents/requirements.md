@@ -113,16 +113,21 @@
   - Send user notification only when LLM identifies actual problems.
   - No fixed thresholds; contextual analysis by LLM.
 
-### ✅ FR-7 In-History Conversation History
+### ✅ FR-7 Context Builder & In-Memory History
 
-- **Description:** Maintain conversation history in RAM with messages limited by total symbol count
-  for LLM context.
-- **Use case:** History updates on interaction; owner resets via `/reset` command; LLM reads
+- **Description:** Use `ContextBuilder` to maintain in-memory conversation with symbol-based limits
+  and to compose system prompt from template with system info and facts.
+- **Use case:** Context evolves on interaction; owner resets via `/reset`; LLM consumes recent
   context.
 - **Criteria:**
-  - Records: `{ type: "msg", role, content, ts }`; limit by total symbol count
+  - Stores SDK-agnostic ModelMessage[] with chronological order; limits by total symbols
     `AGENT_MEMORY_MAX_SYMBOLS` (default 20000).
-  - Append recording; reset via command; base prompt hardcoded in LLM adapter.
+  - `append()` adds messages directly (system, user, assistant, tool); `appendStepMessages()` adds
+    messages from LLM step responses with deduplication.
+  - `getContext()` returns `{systemPrompt, messages}` with recent context within symbol budget.
+  - System prompt generated from template with placeholders replaced: `{{SERVER_INFO}}`,
+    `{{FACTS}}`.
+  - Reset clears context via `/reset`.
 
 ### ✅ FR-8 Configuration & Secrets
 
@@ -201,7 +206,8 @@
   - `AuditTask` processes metrics analysis for anomaly detection decisions.
   - `DiagnoseTask` diagnoses root causes using terminal tool for investigation.
   - Factory functions: `createMainAgent()`, `createAuditTask()`, `createDiagnoseTask()`.
-  - Components: `ConversationHistory`, Vercel AI SDK agents, specialized prompts.
+  - Components: `ContextBuilder`, Vercel AI SDK agents, specialized prompts with server info and
+    facts.
   - Telegram handlers use MainAgent; scheduler uses AuditTask + DiagnoseTask.
   - Conversation history limits and tool orchestration managed per component.
 

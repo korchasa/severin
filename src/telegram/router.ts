@@ -4,7 +4,7 @@
 
 import type { Bot, Context } from "grammy";
 import { z } from "zod";
-import type { CommandDef } from "../core/types.ts";
+import type { CommandDef } from "./types.ts";
 import { log } from "../utils/logger.ts";
 
 /**

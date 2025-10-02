@@ -4,7 +4,7 @@
  * Uses custom timestamp-based ID generation instead of external dependencies
  */
 
-import type { Fact, FactsStorage } from "../../core/types.ts";
+import type { Fact, FactsStorage } from "./types.ts";
 import { log } from "../../utils/logger.ts";
 
 /**

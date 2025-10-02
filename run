@@ -41,7 +41,7 @@ case "$cmd" in
   check)
     cd "$ROOT_DIR"
     echo "Formatting code..."
-    deno fmt --check || deno fmt
+    deno fmt
     echo "Check types in code..."
     deno check --allow-import
     echo "Linting code..."

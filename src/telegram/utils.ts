@@ -35,12 +35,7 @@ export function shortAgentResponseDump(
     finishReason: data?.finishReason ?? "unknown",
     messages: (data as any).request?.body?.input?.map((message: any) => ({
       role: message.role,
-      content: (() => {
-        if (message?.content?.length > 200) {
-          return message?.content?.slice(0, 200) + "...";
-        }
-        return message?.content;
-      })(),
+      content: message.content,
       type: message.type,
       name: message.name,
       arguments: message.arguments,
