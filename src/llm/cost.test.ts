@@ -1,5 +1,5 @@
 import { assertEquals } from "@std/assert";
-import { calcAmount, sumUsages } from "./cost.ts";
+import { createCostCalculator } from "./cost.ts";
 
 Deno.test("calcAmount calculates cost for basic usage", () => {
   const tokenPrices = {
@@ -18,7 +18,7 @@ Deno.test("calcAmount calculates cost for basic usage", () => {
     cachedInputTokens: undefined,
   };
 
-  const cost = calcAmount(usage, tokenPrices);
+  const cost = createCostCalculator(tokenPrices).calcCosts(usage);
 
   // Expected: (1000 / 1_000_000) * 0.15 + (200 / 1_000_000) * 0.60
   // = 0.00015 + 0.00012 = 0.00027
@@ -42,7 +42,7 @@ Deno.test("calcAmount calculates cost with all token types", () => {
     cachedInputTokens: 500,
   };
 
-  const cost = calcAmount(usage, tokenPrices);
+  const cost = createCostCalculator(tokenPrices).calcCosts(usage);
 
   // Expected: (1000 / 1_000_000) * 0.15 + (200 / 1_000_000) * 0.60 + (1200 / 1_000_000) * 0.30 +
   //           (100 / 1_000_000) * 0.50 + (500 / 1_000_000) * 0.10
@@ -67,7 +67,7 @@ Deno.test("calcAmount ignores undefined prices and tokens", () => {
     cachedInputTokens: undefined,
   };
 
-  const cost = calcAmount(usage, tokenPrices);
+  const cost = createCostCalculator(tokenPrices).calcCosts(usage);
 
   // Expected: only input and output tokens
   // (1000 / 1_000_000) * 0.15 + (200 / 1_000_000) * 0.60 = 0.00015 + 0.00012 = 0.00027
@@ -91,12 +91,20 @@ Deno.test("calcAmount returns 0 for empty usage", () => {
     cachedInputTokens: undefined,
   };
 
-  const cost = calcAmount(usage, tokenPrices);
+  const cost = createCostCalculator(tokenPrices).calcCosts(usage);
 
   assertEquals(cost, 0);
 });
 
 Deno.test("sumUsages sums multiple usage objects", () => {
+  const tokenPrices = {
+    inputTokens: 0.15,
+    outputTokens: 0.60,
+    totalTokens: undefined,
+    reasoningTokens: undefined,
+    cachedInputTokens: undefined,
+  };
+
   const usages = [
     {
       inputTokens: 100,
@@ -121,7 +129,7 @@ Deno.test("sumUsages sums multiple usage objects", () => {
     },
   ];
 
-  const result = sumUsages(usages);
+  const result = createCostCalculator(tokenPrices).sumUsages(usages);
 
   assertEquals(result.inputTokens, 150);
   assertEquals(result.outputTokens, 275);

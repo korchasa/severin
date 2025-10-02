@@ -20,6 +20,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createDiagnoseTask } from "./agent/diagnose-task.ts";
 import { createTerminalTool } from "./agent/tools/terminal.ts";
 import { createFactsStorage } from "./agent/facts/file.ts";
+import { createCostCalculator } from "./llm/cost.ts";
 // LLM adapter encapsulated within agent
 
 /**
@@ -65,6 +66,8 @@ export async function startAgent(): Promise<void> {
   // Initialize facts storage
   const factsStorage = createFactsStorage(config.agent.dataDir);
 
+  const costCalculator = createCostCalculator(config.agent.llm.tokenPrices);
+
   // Initialize agent (encapsulates LLM, history, tools)
   const llmProvider = createOpenAI({ apiKey: config.agent.llm.apiKey });
   const llmModel = llmProvider(config.agent.llm.model);
@@ -81,6 +84,7 @@ export async function startAgent(): Promise<void> {
     contextBuilder,
     systemInfo,
     factsStorage,
+    costCalculator,
     dataDir: config.agent.dataDir,
   });
   const auditTask = createAuditTask({
@@ -95,6 +99,7 @@ export async function startAgent(): Promise<void> {
     terminalTool,
     systemInfo,
     factsStorage,
+    costCalculator,
   });
 
   // LLM adapter encapsulated within agent

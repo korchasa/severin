@@ -53,13 +53,13 @@ export function createTextMessageHandler(
     const correlationId = ctx.message!.message_id?.toString();
     try {
       // Process query through agent
-      const { text: responseText } = await mainAgent.processUserQuery({
+      const { text: responseText, cost } = await mainAgent.processUserQuery({
         userQuery: userQuery,
         correlationId: correlationId,
         onThoughts: async (thoughts) => {
           const thoughtsHTML = markdownToTelegramHTML(thoughts);
           await ctx.reply(
-            `<blockquote expandable><pre><code class="language-bash">${thoughtsHTML}</code></pre></blockquote>`,
+            `<blockquote expandable>${thoughtsHTML}</blockquote>`,
             { parse_mode: "HTML" },
           );
         },
@@ -71,7 +71,7 @@ export function createTextMessageHandler(
               );
               const commandHTML = markdownToTelegramHTML(call.input.command);
               await ctx.reply(
-                `<blockquote expandable><pre><code class="language-bash"># ${reasonHTML}\n&gt; ${commandHTML}</code></pre></blockquote>`,
+                `<blockquote><pre><code class="language-bash"># ${reasonHTML}\n&gt; ${commandHTML}</code></pre></blockquote>`,
                 { parse_mode: "HTML" },
               );
               break;
@@ -112,9 +112,12 @@ export function createTextMessageHandler(
 
       // Don't send empty responses to avoid Telegram API errors
       if (responseText.trim()) {
-        await ctx.reply(markdownToTelegramHTML(`<pre>${responseText}</pre>`), {
-          parse_mode: "HTML",
-        });
+        await ctx.reply(
+          `<pre>${markdownToTelegramHTML(responseText)}</pre>\n<i>${cost.toFixed(4)}$</i>`,
+          {
+            parse_mode: "HTML",
+          },
+        );
       }
       log({
         mod: "tg",

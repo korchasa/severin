@@ -230,20 +230,17 @@
 
 ### ✅ FR-16 LLM Cost Calculation
 
-- **Description:** Agent calculates and tracks costs of LLM usage based on configurable token prices
-  for cost monitoring and optimization.
-- **Use case:** Monitor LLM usage costs across different operations (conversations, metrics
-  analysis, diagnostics) for budget control and efficiency analysis.
+- **Description:** Agent calculates and tracks costs of LLM usage via `CostCalculator` class based on configurable token prices for cost monitoring and optimization.
+- **Use case:** Monitor LLM usage costs across different operations (conversations, metrics analysis, diagnostics) for budget control and efficiency analysis.
 - **Criteria:**
-  - Support for all token types from `LanguageModelV2Usage`: `inputTokens`, `outputTokens`,
-    `totalTokens`, `reasoningTokens`, `cachedInputTokens`.
+  - Support for all token types from `LanguageModelV2Usage`: `inputTokens`, `outputTokens`, `totalTokens`, `reasoningTokens`, `cachedInputTokens`.
   - Pricing configuration via environment variables (`AGENT_LLM_PRICE_*`) in USD per 1M tokens.
-  - Pure calculation function without external dependencies (no `@pydantic/genai-prices`).
+  - `CostCalculator` class with `calcCosts()` and `sumUsages()` methods; no external dependencies.
   - Cost calculation integrated into all LLM operations (MainAgent, AuditTask, DiagnoseTask).
   - Optional token types (reasoning, cached) with configurable pricing.
   - Type-safe implementation with full TypeScript support.
   - Usage tracking added to AuditTask and DiagnoseTask for cost monitoring.
-  - Function name: `calcAmount` for cost calculation.
+  - `MainAgent.processUserQuery()` returns `{text, cost}`; cost displayed in Telegram responses.
 
 ### ✅ FR-17 Real-time Tool Call Notifications
 
