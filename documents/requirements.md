@@ -235,7 +235,7 @@
 - **Criteria:**
   - Support for all token types from `LanguageModelV2Usage`: `inputTokens`, `outputTokens`, `totalTokens`, `reasoningTokens`, `cachedInputTokens`.
   - Pricing configuration via environment variables (`AGENT_LLM_PRICE_*`) in USD per 1M tokens.
-  - `CostCalculator` class with `calcCosts()` and `sumUsages()` methods; no external dependencies.
+  - `CostCalculator` (interface + factory) with `calcCosts()` and `sumUsages()` methods; no external dependencies.
   - Cost calculation integrated into all LLM operations (MainAgent, AuditTask, DiagnoseTask).
   - Optional token types (reasoning, cached) with configurable pricing.
   - Type-safe implementation with full TypeScript support.
