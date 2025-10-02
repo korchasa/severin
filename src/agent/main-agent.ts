@@ -154,20 +154,12 @@ export class MainAgent implements MainAgentAPI {
       // Stream agent response
       log({
         mod: "agent",
+        level: "info",
         event: "agent_context",
         correlationId,
         messages,
       });
-      const stream = agent.stream({ messages: messages });
-
-      // Helper types for strict typing
-      type ToolResultStreamPart = {
-        type: "tool-result";
-        toolCallId: string;
-        result: LanguageModelV2ToolResultOutput;
-        toolName?: string;
-      };
-      type AgentStreamPart = TextDeltaPart | ToolCallStreamPart | FinishPart | ToolResultStreamPart;
+      const { fullStream } = agent.stream({ messages: messages });
 
       let preToolBuffer = "";
       let visibleBuffer = "";
@@ -185,8 +177,6 @@ export class MainAgent implements MainAgentAPI {
       }> = [];
 
       // Use strictly typed fullStream
-      const fullStream =
-        (stream as unknown as { fullStream: AsyncIterable<AgentStreamPart> }).fullStream;
       try {
         for await (const part of fullStream) {
           switch (part.type) {
@@ -287,6 +277,32 @@ export class MainAgent implements MainAgentAPI {
                 });
               }
               break;
+            }
+            case "error": {
+              const error = part.error;
+              log({
+                mod: "agent",
+                level: "error",
+                event: "streamText_error",
+                error: (error as Error).message,
+              });
+              throw new Error("Stream error");
+            }
+            case "abort": {
+              log({
+                mod: "agent",
+                level: "error",
+                event: "streamText_abort",
+              });
+              throw new Error("Stream aborted");
+            }
+            case "tool-error": {
+              log({
+                mod: "agent",
+                level: "error",
+                event: "streamText_tool_error",
+              });
+              throw new Error("Stream tool error");
             }
             case "finish": {
               const f = part as FinishPart;

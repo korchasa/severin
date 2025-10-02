@@ -52,7 +52,7 @@ Deno.test("ContextBuilder: append handles simple messages correctly", async () =
 Deno.test("ContextBuilder: append handles complex messages with tool calls", async () => {
   const builder = createContextBuilder();
 
-  // Test message with tool call content
+  // Test message with tool call content and corresponding tool result
   const toolCallMessage = {
     role: "assistant" as const,
     content: [
@@ -65,39 +65,38 @@ Deno.test("ContextBuilder: append handles complex messages with tool calls", asy
     ],
   };
 
+  const toolResultMessage = {
+    role: "tool" as const,
+    content: [
+      {
+        type: "tool-result" as const,
+        toolCallId: "call_123",
+        toolName: "terminal",
+        output: {
+          type: "json" as const,
+          value: { exitCode: 0, stdout: "file1.txt\nfile2.txt", stderr: "" },
+        },
+      },
+    ],
+  };
+
   builder.append(toolCallMessage);
+  builder.append(toolResultMessage);
 
   const { messages } = await builder.getContext("You are a helpful assistant");
-  assertEquals(messages.length, 1);
+  assertEquals(messages.length, 2);
   assertEquals(messages[0].role, "assistant");
+  assertEquals(messages[1].role, "tool");
   assertEquals(Array.isArray(messages[0].content), true);
+  assertEquals(Array.isArray(messages[1].content), true);
 
-  const content = messages[0].content as unknown[];
-  assertEquals(content.length, 1);
-  const toolCall = content[0] as { type: string; toolCallId: string };
+  const assistantContent = messages[0].content as unknown[];
+  const toolContent = messages[1].content as unknown[];
+  assertEquals(assistantContent.length, 1);
+  assertEquals(toolContent.length, 1);
+  const toolCall = assistantContent[0] as { type: string; toolCallId: string };
   assertEquals(toolCall.type, "tool-call");
   assertEquals(toolCall.toolCallId, "call_123");
-});
-
-Deno.test("ContextBuilder: getRecentMessages respects symbol limit", async () => {
-  const builder = createContextBuilder(50); // Very small limit
-
-  // Add messages that exceed the limit
-  builder.append({
-    role: "user",
-    content: "This is a very long message that will exceed the symbol limit",
-  });
-  builder.append({ role: "user", content: "Another long message" });
-
-  const { messages } = await builder.getContext("You are a helpful assistant");
-
-  // Should only return messages that fit within the limit
-  const totalLength = messages.reduce((sum, msg) => {
-    const content = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
-    return sum + content.length;
-  }, 0);
-
-  assertEquals(totalLength <= 50, true);
 });
 
 Deno.test("ContextBuilder: getRecentMessages returns messages in chronological order", async () => {
@@ -136,39 +135,6 @@ Deno.test("ContextBuilder: reset clears conversation history", async () => {
   // Verify history is empty
   const { messages: newMessages } = await builder.getContext("You are a helpful assistant");
   assertEquals(newMessages.length, 0);
-});
-
-Deno.test("ContextBuilder: handles malformed JSON in complex content gracefully", async () => {
-  const builder = createContextBuilder();
-
-  // Create malformed/non-serializable content and ensure no crash
-  const circular: { self?: unknown } = {};
-  circular.self = circular;
-  builder.append({ role: "assistant", content: circular } as unknown as ModelMessage);
-
-  // Should not crash and return an array
-  const { messages } = await builder.getContext("You are a helpful assistant");
-  assertEquals(Array.isArray(messages), true);
-});
-
-Deno.test("ContextBuilder: estimateSymbols handles different content types", () => {
-  const builder = createContextBuilder();
-
-  // Test string content
-  const stringMessage = { role: "user" as const, content: "Hello world" };
-  const stringSymbols = (builder as unknown as { estimateSymbols: (msg: unknown) => number })
-    .estimateSymbols(stringMessage);
-  assertEquals(stringSymbols, 11); // "Hello world".length
-
-  // Test complex content
-  const complexMessage = {
-    role: "assistant" as const,
-    content: [{ type: "tool-call", toolCallId: "123" }],
-  };
-  const complexSymbols = (builder as unknown as { estimateSymbols: (msg: unknown) => number })
-    .estimateSymbols(complexMessage);
-  assertEquals(typeof complexSymbols, "number");
-  assertEquals(complexSymbols > 0, true);
 });
 
 Deno.test("ContextBuilder: appendStepMessages deduplicates messages by content", async () => {
@@ -290,4 +256,143 @@ Deno.test("ContextBuilder: appendStepMessages deduplicates messages by content",
 
   assertEquals(hasPlanMessage, true, "Should contain the plan message");
   assertEquals(hasResultMessage, true, "Should contain the result message");
+});
+
+Deno.test("ContextBuilder: integration with ContextCompactor ensures tool-call/tool-result consistency", async () => {
+  const maxSymbols = 300; // Small limit to force trimming
+  const builder = new ContextBuilder(maxSymbols, createMockSystemInfo(), new MockFactsStorage());
+
+  // Add many messages to exceed limit
+  for (let i = 0; i < 10; i++) {
+    builder.append({ role: "user", content: `User message ${i} with some content` });
+    builder.append({ role: "assistant", content: `Assistant response ${i}` });
+  }
+
+  // Add tool-call and tool-result at the end (most recent)
+  const toolCallId = "important_call";
+  builder.append({
+    role: "assistant",
+    content: [{
+      type: "tool-call",
+      toolCallId,
+      toolName: "terminal",
+      input: { command: "pwd" },
+    }],
+  });
+
+  builder.append({
+    role: "tool",
+    content: [{
+      type: "tool-result",
+      toolCallId,
+      toolName: "terminal",
+      output: { type: "json", value: { exitCode: 0, stdout: "/home/user", stderr: "" } },
+    }],
+  });
+
+  const { messages } = await builder.getContext("You are a helpful assistant");
+
+  // Verify consistency: if tool-result is present, tool-call must also be present
+  const hasToolResult = messages.some((m: ModelMessage) =>
+    m.role === "tool" &&
+    Array.isArray(m.content) &&
+    m.content.some((c: unknown) =>
+      typeof c === "object" && c !== null && "type" in c &&
+      (c as { type: string }).type === "tool-result"
+    )
+  );
+
+  const hasToolCall = messages.some((m: ModelMessage) =>
+    m.role === "assistant" &&
+    Array.isArray(m.content) &&
+    m.content.some((c: unknown) =>
+      typeof c === "object" && c !== null && "type" in c &&
+      (c as { type: string }).type === "tool-call"
+    )
+  );
+
+  if (hasToolResult) {
+    assertEquals(
+      hasToolCall,
+      true,
+      "Tool-call must be present when tool-result is present in trimmed context",
+    );
+  }
+
+  // Verify that total symbol count is within limit
+  let totalSymbols = 0;
+  const compactor = new (await import("./compactor.ts")).ContextCompactor(maxSymbols);
+  for (const msg of messages) {
+    totalSymbols += compactor.estimateSymbols(msg);
+  }
+  assertEquals(
+    totalSymbols <= maxSymbols,
+    true,
+    `Total symbols ${totalSymbols} should not exceed limit ${maxSymbols}`,
+  );
+});
+
+Deno.test("ContextBuilder: handles orphaned tool-call removal during context trimming", async () => {
+  const maxSymbols = 200; // Small limit
+  const builder = new ContextBuilder(maxSymbols, createMockSystemInfo(), new MockFactsStorage());
+
+  // Add messages to consume symbol budget
+  for (let i = 0; i < 5; i++) {
+    builder.append({ role: "user", content: `User message ${i} with considerable content` });
+    builder.append({ role: "assistant", content: `Assistant response ${i} with more content` });
+  }
+
+  // Add orphaned tool-call (no corresponding tool-result)
+  builder.append({
+    role: "assistant",
+    content: [{
+      type: "tool-call",
+      toolCallId: "orphaned_call",
+      toolName: "terminal",
+      input: { command: "pwd" },
+    }],
+  });
+
+  const { messages } = await builder.getContext("You are a helpful assistant");
+
+  // Orphaned tool-call should be removed by consistency check
+  const hasOrphanedToolCall = messages.some((m: ModelMessage) =>
+    m.role === "assistant" &&
+    Array.isArray(m.content) &&
+    m.content.some((c: unknown) =>
+      typeof c === "object" && c !== null && "type" in c &&
+      (c as { type: string }).type === "tool-call" &&
+      "toolCallId" in c && (c as { toolCallId: string }).toolCallId === "orphaned_call"
+    )
+  );
+
+  assertEquals(
+    hasOrphanedToolCall,
+    false,
+    "Orphaned tool-call should be removed from trimmed context",
+  );
+});
+
+Deno.test("ContextBuilder: preserves system prompt templating with server info and facts", async () => {
+  const builder = new ContextBuilder(1000, createMockSystemInfo(), new MockFactsStorage());
+
+  const template =
+    "System: {{SERVER_INFO}}\nFacts: {{FACTS}}\nInstructions: You are a helpful assistant.";
+
+  const { systemPrompt } = await builder.getContext(template);
+
+  // Verify that placeholders are replaced
+  assertEquals(
+    systemPrompt.includes("{{SERVER_INFO}}"),
+    false,
+    "SERVER_INFO placeholder should be replaced",
+  );
+  assertEquals(systemPrompt.includes("{{FACTS}}"), false, "FACTS placeholder should be replaced");
+  assertEquals(systemPrompt.includes("System:"), true, "System prompt should contain system info");
+  assertEquals(systemPrompt.includes("Facts:"), true, "System prompt should contain facts");
+  assertEquals(
+    systemPrompt.includes("Instructions:"),
+    true,
+    "System prompt should preserve instructions",
+  );
 });

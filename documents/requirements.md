@@ -128,6 +128,8 @@
   - System prompt generated from template with placeholders replaced: `{{SERVER_INFO}}`,
     `{{FACTS}}`.
   - Reset clears context via `/reset`.
+  - Ensures tool-call/tool-result consistency during context trimming: if a tool-result is included,
+    its corresponding tool-call must also be included, and vice versa.
 
 ### ✅ FR-8 Configuration & Secrets
 
@@ -303,7 +305,8 @@ System accepted when:
 2. ✅ Long polling only; non-owner messages rejected safely.
 3. ✅ Periodic metrics collection with trend analysis; LLM-based anomaly detection triggers
    contextual notifications.
-4. ✅ History as in-RAM storage with symbol limit; reset via `/reset`; base prompt hardcoded.
+4. ✅ History as in-RAM storage with symbol limit; reset via `/reset`; base prompt hardcoded;
+   tool-call/tool-result consistency maintained during trimming.
 5. ✅ Terminal tool (LLM-only) executes via `execFile` with timeout/output limits; safe messages on
    errors; command logging; full LLM integration via Agent facade.
 6. ✅ System information collected at startup and included in LLM system prompt for contextual
