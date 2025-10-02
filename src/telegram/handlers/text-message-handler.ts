@@ -12,9 +12,6 @@ import type { Config } from "../../config/types.ts";
 import type { MainAgent } from "../../agent/main-agent.ts";
 import { log } from "../../utils/logger.ts";
 import { markdownToTelegramHTML } from "../telegram-format.ts";
-import { TerminalRequest } from "../../agent/tools/types.ts";
-import { z } from "zod";
-import { AddFactParams, DeleteFactParams, UpdateFactParams } from "../../agent/tools/facts.ts";
 import { ToolSet, TypedToolCall, TypedToolResult } from "ai";
 
 /**
@@ -23,7 +20,7 @@ import { ToolSet, TypedToolCall, TypedToolResult } from "ai";
  */
 export function createTextMessageHandler(
   mainAgent: MainAgent,
-  _config: Config,
+  _config: Config
 ) {
   return async (ctx: Context): Promise<void> => {
     const userQuery = ctx.message?.text?.trim();
@@ -31,10 +28,10 @@ export function createTextMessageHandler(
     // Skip empty messages or very short messages (likely typos)
     if (!userQuery || userQuery.length < 2) {
       log({
-        "mod": "tg",
-        "event": "text_message_ignored",
-        "reason": "too_short",
-        "length": userQuery?.length || 0,
+        mod: "tg",
+        event: "text_message_ignored",
+        reason: "too_short",
+        length: userQuery?.length || 0,
       });
       return;
     }
@@ -46,69 +43,60 @@ export function createTextMessageHandler(
 
     // Log the text message being sent to LLM
     log({
-      "mod": "tg",
-      "event": "text_message_to_llm",
-      "text_length": userQuery.length,
+      mod: "tg",
+      event: "text_message_to_llm",
+      text_length: userQuery.length,
     });
 
     // Send typing action to show the bot is processing
     await ctx.api.sendChatAction(ctx.chat!.id, "typing");
-
-    const msg = await ctx.reply("...");
-
+    const correlationId = ctx.message!.message_id?.toString();
     try {
       // Process query through agent
       const { text: responseText } = await mainAgent.processUserQuery({
         userQuery: userQuery,
-        correlationId: msg.message_id?.toString(),
+        correlationId: correlationId,
         onThoughts: async (thoughts) => {
+          const thoughtsHTML = markdownToTelegramHTML(thoughts);
           await ctx.reply(
-            markdownToTelegramHTML(
-              `<blockquote expandable><pre><code class="language-bash"># ${thoughts}</code></pre></blockquote>`,
-            ),
-            { parse_mode: "HTML" },
+            `<blockquote expandable><pre><code class="language-bash">${thoughtsHTML}</code></pre></blockquote>`,
+            { parse_mode: "HTML" }
           );
         },
         beforeCall: async (call: TypedToolCall<ToolSet>) => {
           switch (call.toolName) {
             case "terminal": {
-              const params = call.input as TerminalRequest;
-              const reason = params.reason.replace(/\n/g, "\n# ");
+              const reasonHTML = markdownToTelegramHTML(
+                call.input.reason.replace(/\n/g, "\n# ")
+              );
+              const commandHTML = markdownToTelegramHTML(call.input.command);
               await ctx.reply(
-                markdownToTelegramHTML(
-                  `<blockquote expandable><pre><code class="language-bash"># ${reason}\n&gt; ${params.command}</code></pre></blockquote>`,
-                ),
-                { parse_mode: "HTML" },
+                `<blockquote expandable><pre><code class="language-bash"># ${reasonHTML}\n&gt; ${commandHTML}</code></pre></blockquote>`,
+                { parse_mode: "HTML" }
               );
               break;
             }
             case "add_fact": {
-              const params = call.input as z.infer<typeof AddFactParams>;
+              const contentHTML = markdownToTelegramHTML(call.input.content);
               await ctx.reply(
-                markdownToTelegramHTML(
-                  `<blockquote>Add fact "${params.content}"</blockquote>`,
-                ),
-                { parse_mode: "HTML" },
+                `<blockquote>Add fact "${contentHTML}"</blockquote>`,
+                { parse_mode: "HTML" }
               );
               break;
             }
             case "update_fact": {
-              const params = call.input as z.infer<typeof UpdateFactParams>;
+              const contentHTML = markdownToTelegramHTML(call.input.content);
               await ctx.reply(
-                markdownToTelegramHTML(
-                  `<blockquote>Update fact "${params.content}"</blockquote>`,
-                ),
-                { parse_mode: "HTML" },
+                `<blockquote>Update fact "${contentHTML}"</blockquote>`,
+                { parse_mode: "HTML" }
               );
               break;
             }
             case "delete_fact": {
-              const params = call.input as z.infer<typeof DeleteFactParams>;
+              const idHTML = markdownToTelegramHTML(call.input.id);
               await ctx.reply(
-                markdownToTelegramHTML(
-                  `<blockquote>Delete fact "${params.id}"</blockquote>`,
-                ),
-                { parse_mode: "HTML" },
+                `<blockquote>Delete fact "${idHTML}"</blockquote>`,
+                { parse_mode: "HTML" }
               );
               break;
             }
@@ -124,19 +112,23 @@ export function createTextMessageHandler(
 
       // Don't send empty responses to avoid Telegram API errors
       if (responseText.trim()) {
-        await ctx.reply(markdownToTelegramHTML(responseText), { parse_mode: "HTML" });
+        await ctx.reply(markdownToTelegramHTML(`<pre>${responseText}</pre>`), {
+          parse_mode: "HTML",
+        });
       }
       log({
-        "mod": "tg",
-        "event": "agent_response",
-        "response_length": responseText.length,
+        mod: "tg",
+        event: "agent_response",
+        response_length: responseText.length,
       });
     } catch (error) {
       await ctx.reply(
-        markdownToTelegramHTML("An error occurred while processing the request."),
+        markdownToTelegramHTML(
+          "An error occurred while processing the request."
+        ),
         {
           parse_mode: "HTML",
-        },
+        }
       );
       log({
         mod: "tg",
