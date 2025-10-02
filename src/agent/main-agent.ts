@@ -152,7 +152,12 @@ export class MainAgent implements MainAgentAPI {
 
     try {
       // Stream agent response
-      console.log(">>> context", messages);
+      log({
+        mod: "agent",
+        event: "agent_context",
+        correlationId,
+        messages,
+      });
       const stream = agent.stream({ messages: messages });
 
       // Helper types for strict typing
