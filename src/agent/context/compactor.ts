@@ -130,17 +130,17 @@ export class SimpleContextCompactor implements ContextCompactor {
     // Filter messages to keep only consistent tool-call/tool-result pairs
     return messages.filter((msg) => {
       if (msg.role === "assistant" && Array.isArray(msg.content)) {
-        // Check if assistant message has tool-calls that have corresponding results
-        const hasInconsistentToolCalls = msg.content.some((part) =>
-          this.isToolCallPart(part) && !toolResults.has(part.toolCallId)
+        // Check if all assistant message tool-calls have corresponding results
+        const allToolCallsConsistent = msg.content.every((part) =>
+          !this.isToolCallPart(part) || toolResults.has(part.toolCallId)
         );
-        return !hasInconsistentToolCalls;
+        return allToolCallsConsistent;
       } else if (msg.role === "tool" && Array.isArray(msg.content)) {
-        // Check if tool message has results that have corresponding calls
-        const hasInconsistentToolResults = msg.content.some((part) =>
-          this.isToolResultPart(part) && !toolCalls.has(part.toolCallId)
+        // Check if all tool message results have corresponding calls
+        const allToolResultsConsistent = msg.content.every((part) =>
+          !this.isToolResultPart(part) || toolCalls.has(part.toolCallId)
         );
-        return !hasInconsistentToolResults;
+        return allToolResultsConsistent;
       }
       // Keep non-tool messages
       return true;
