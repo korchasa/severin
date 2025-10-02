@@ -128,13 +128,15 @@ export class MainAgent implements MainAgentAPI {
       textLength: userQuery.length,
     });
 
-    this.contextBuilder.appendUserQuery(userQuery);
-    this.contextBuilder.setBasePromptTemplate(this.getSystemPromptTemplate());
+    this.contextBuilder.append({ role: "user", content: userQuery });
+    const { systemPrompt, messages } = await this.contextBuilder.getContext(
+      this.getSystemPromptTemplate(),
+    );
 
     // Agent instantiation (remove system property)
     const agent = new Agent({
       model: this.llmModel,
-      system: await this.contextBuilder.generateBasePrompt(),
+      system: systemPrompt,
       temperature: this.llmTemperature,
       tools: {
         terminal: this.terminalTool,
@@ -144,15 +146,14 @@ export class MainAgent implements MainAgentAPI {
       },
       stopWhen: [stepCountIs(this.maxSteps)],
       onStepFinish: (step) => {
-        this.contextBuilder.appendAgentStep(step);
+        this.contextBuilder.appendStepMessages(step.response.messages);
       },
     });
 
     try {
       // Stream agent response
-      const context = this.contextBuilder.getContext();
-      console.log(">>> context", context);
-      const stream = agent.stream({ messages: context });
+      console.log(">>> context", messages);
+      const stream = agent.stream({ messages: messages });
 
       // Helper types for strict typing
       type ToolResultStreamPart = {

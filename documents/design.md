@@ -219,15 +219,13 @@ interface CommandDef<A> {
 
 - **Purpose:** Build recent `ModelMessage[]` within symbol budget and render system prompt from
   template with system info and facts.
-- **Storage:** In-memory Event[] log (SDK-agnostic events: user, assistant, system, tool-call,
-  tool-result).
+- **Storage:** In-memory ModelMessage[] array with chronological order.
 - **Limits:** `AGENT_MEMORY_MAX_SYMBOLS` — symbol-based trimming from head.
 - **Behavior:**
-  - `appendUserQuery()` adds user messages immediately.
-  - `appendAgentStep()` records tool-calls, tool-results, final assistant text.
-  - `append()` maps ModelMessage to internal Event[].
-  - `getContext()` builds ModelMessage[] view with grouped tool-calls and chronological order.
-  - Generate base prompt via template placeholders `{{SERVER_INFO}}`, `{{FACTS}}`.
+  - `append()` adds messages directly (system, user, assistant, tool).
+  - `appendStepMessages()` adds messages from LLM step responses with deduplication by content hash.
+  - `getContext()` returns `{systemPrompt, messages}` with recent context within symbol budget.
+  - System prompt generated from template with placeholders `{{SERVER_INFO}}`, `{{FACTS}}`.
   - `reset()` clears context.
 
 ### 4.6. Scheduler + Singleflight
@@ -640,8 +638,8 @@ sequenceDiagram
 
 ### 6.1. Context Storage
 
-- In-memory Event[]: SDK-agnostic events (user, assistant, system, tool-call, tool-result).
-- `getContext()` builds ModelMessage[] view with chronological order and grouped tool-calls.
+- In-memory ModelMessage[]: SDK-agnostic messages with chronological order.
+- `getContext()` returns `{systemPrompt, messages}` with recent context within symbol budget.
 - Trimming by symbol count `AGENT_MEMORY_MAX_SYMBOLS`.
 
 ### 6.2. Audit JSONL (terminal)
@@ -732,27 +730,27 @@ sequenceDiagram
 
 ## 12. SRS → SDS Mapping (requirements correspondence)
 
-| SRS FR/NFR                                     | How covered in SDS                                                                                                   |
-| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| FR-1 Telegram bot (long polling)               | Sections 4.1, 4.2, `grammy` choice; no webhook; HTML formatting (4.16)                                               |
-| FR-2 Routing & validation                      | 4.3 (command registry), `zod`, logs with id                                                                          |
-| FR-3 Terminal tool (LLM-only)                  | 4.11 (Terminal Tool, logging)                                                                                        |
-| FR-4 Periodic metrics scheduler                | 4.6 (jitter, singleflight), 5.2 (metrics collection & LLM analysis)                                                  |
-| FR-5 Baseline checks with metrics              | 4.7 (metrics collection with history)                                                                                |
-| FR-6 Intelligent anomaly detection             | 4.8 (LLM-based analysis instead of fixed thresholds)                                                                 |
-| FR-7 Context Builder & in-memory history       | 4.5, 6.1 (symbol limit, reset, prompt templating with system info and facts)                                         |
-| FR-8 Config & secrets                          | 3.1.1, secret masking, createDefaultConfig() domain objects, caching, .env auto-loading                              |
-| FR-9 LLM via Internal Interface                | 4.10–4.11 (type contracts), Telegram Bot API                                                                         |
-| FR-10 Automatic Text Message Processing        | 4.3 (text handler), 5.4 (sequence), filters <2 chars                                                                 |
-| FR-11 System Information Collection at Startup | 4.14 (System Info Collector), 5.6 (sequence), integrated in all agent prompts (MainAgent, AuditTask, DiagnoseTask)   |
-| FR-12 Logger Format Configuration              | 4.15 (logging formats), environment variable `LOG_FORMAT`                                                            |
-| FR-14 Agent Facade Architecture                | 4.10 (Agent Facade), createAgent factory, ConversationHistory, LlmClient, PromptRenderer with SystemInfo integration |
-| FR-15 Persistent Facts Storage                 | 4.12 (Facts Storage and Management), integrated in MainAgent system prompts                                          |
-| NFR Performance                                | 30s tool timeouts, output limits                                                                                     |
-| NFR Reliability                                | simple periodic checks, history trimming                                                                             |
-| NFR Security                                   | 7 (owner access only, no secrets in logs)                                                                            |
-| Interfaces                                     | 4.10–4.11 (type contracts), Telegram Bot API                                                                         |
-| Acceptance (system-level)                      | Fully reflected in command mechanics, scheduler, history and tool                                                    |
+| SRS FR/NFR                                     | How covered in SDS                                                                                                      |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| FR-1 Telegram bot (long polling)               | Sections 4.1, 4.2, `grammy` choice; no webhook; HTML formatting (4.16)                                                  |
+| FR-2 Routing & validation                      | 4.3 (command registry), `zod`, logs with id                                                                             |
+| FR-3 Terminal tool (LLM-only)                  | 4.11 (Terminal Tool, logging)                                                                                           |
+| FR-4 Periodic metrics scheduler                | 4.6 (jitter, singleflight), 5.2 (metrics collection & LLM analysis)                                                     |
+| FR-5 Baseline checks with metrics              | 4.7 (metrics collection with history)                                                                                   |
+| FR-6 Intelligent anomaly detection             | 4.8 (LLM-based analysis instead of fixed thresholds)                                                                    |
+| FR-7 Context Builder & in-memory history       | 4.5, 6.1 (symbol limit, reset, prompt templating with system info and facts; ModelMessage[] storage with deduplication) |
+| FR-8 Config & secrets                          | 3.1.1, secret masking, createDefaultConfig() domain objects, caching, .env auto-loading                                 |
+| FR-9 LLM via Internal Interface                | 4.10–4.11 (type contracts), Telegram Bot API                                                                            |
+| FR-10 Automatic Text Message Processing        | 4.3 (text handler), 5.4 (sequence), filters <2 chars                                                                    |
+| FR-11 System Information Collection at Startup | 4.14 (System Info Collector), 5.6 (sequence), integrated in all agent prompts (MainAgent, AuditTask, DiagnoseTask)      |
+| FR-12 Logger Format Configuration              | 4.15 (logging formats), environment variable `LOG_FORMAT`                                                               |
+| FR-14 Agent Facade Architecture                | 4.10 (Agent Facade), createAgent factory, ConversationHistory, LlmClient, PromptRenderer with SystemInfo integration    |
+| FR-15 Persistent Facts Storage                 | 4.12 (Facts Storage and Management), integrated in MainAgent system prompts                                             |
+| NFR Performance                                | 30s tool timeouts, output limits                                                                                        |
+| NFR Reliability                                | simple periodic checks, history trimming                                                                                |
+| NFR Security                                   | 7 (owner access only, no secrets in logs)                                                                               |
+| Interfaces                                     | 4.10–4.11 (type contracts), Telegram Bot API                                                                            |
+| Acceptance (system-level)                      | Fully reflected in command mechanics, scheduler, history and tool                                                       |
 
 ---
 
