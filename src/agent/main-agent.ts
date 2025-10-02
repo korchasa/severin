@@ -11,7 +11,6 @@ import { log } from "../utils/logger.ts";
 import type { LanguageModelV2, LanguageModelV2ToolResultOutput } from "@ai-sdk/provider";
 import {
   Experimental_Agent as Agent,
-  FinishReason,
   stepCountIs,
   Tool,
   ToolSet,
@@ -27,6 +26,7 @@ import {
   ToolInput,
   ToolName,
 } from "./tools/index.ts";
+import { CostCalculator } from "../llm/cost.ts";
 
 // Helper types for stream parts
 export type deltaTextHandler = (delta: string) => void;
@@ -41,7 +41,6 @@ type ToolCallStreamPart = {
   toolCallId: string;
   input: ToolInput;
 };
-type FinishPart = { type: "finish"; finishReason: FinishReason };
 
 export interface MainAgentAPI {
   processUserQuery(input: {
@@ -64,6 +63,7 @@ export interface MainAgentParams {
   systemInfo: SystemInfo;
   factsStorage: FactsStorage;
   terminalTool: Tool;
+  costCalculator: CostCalculator;
   dataDir: string;
   /** Maximum number of recent messages to include in model context (default: 200) */
   maxHistoryMessages?: number;
@@ -84,6 +84,7 @@ export class MainAgent implements MainAgentAPI {
   private readonly contextBuilder: ContextBuilder;
   private readonly factsStorage: FactsStorage;
   private readonly terminalTool: Tool;
+  private readonly costCalculator: CostCalculator;
   private readonly maxSteps: number;
   constructor(params: MainAgentParams) {
     this.llmModel = params.llmModel;
@@ -91,6 +92,7 @@ export class MainAgent implements MainAgentAPI {
     this.contextBuilder = params.contextBuilder;
     this.factsStorage = params.factsStorage;
     this.terminalTool = params.terminalTool;
+    this.costCalculator = params.costCalculator;
     this.maxSteps = params.maxSteps ?? 10;
   }
 
@@ -115,7 +117,7 @@ export class MainAgent implements MainAgentAPI {
     onThoughts?: beforeCallThoughts;
     beforeCall?: beforeCallHandler;
     afterCall?: afterCallHandler;
-  }): Promise<{ text: string }> {
+  }): Promise<{ text: string; cost: number }> {
     // Validate input
     if (!userQuery || userQuery.trim().length < 2) {
       throw new Error("Query text must be at least 2 characters long");
@@ -159,12 +161,11 @@ export class MainAgent implements MainAgentAPI {
         correlationId,
         messages,
       });
-      const { fullStream } = agent.stream({ messages: messages });
+      const { fullStream, text, totalUsage } = agent.stream({ messages: messages });
 
       let preToolBuffer = "";
       let visibleBuffer = "";
       let seenTool = false;
-      let finishReason: FinishReason = "unknown";
       const pendingToolCalls: Array<{
         toolCallId: string;
         toolName: ToolName;
@@ -255,7 +256,6 @@ export class MainAgent implements MainAgentAPI {
               );
               const resolvedToolName = tr.toolName ?? pending?.toolName ?? "";
               const toolName: string = String(resolvedToolName);
-
               const toolOutput: LanguageModelV2ToolResultOutput = tr
                 .result as LanguageModelV2ToolResultOutput;
 
@@ -305,8 +305,6 @@ export class MainAgent implements MainAgentAPI {
               throw new Error("Stream tool error");
             }
             case "finish": {
-              const f = part as FinishPart;
-              finishReason = f.finishReason;
               break;
             }
             default:
@@ -328,39 +326,17 @@ export class MainAgent implements MainAgentAPI {
 
       // Deno.writeTextFileSync("messages.json", JSON.stringify(await stream.response, null, 2));
 
-      let responseText: string;
-      switch (finishReason) {
-        case "stop": {
-          const visible = seenTool ? visibleBuffer : preToolBuffer;
-          responseText = visible;
-          break;
-        }
-        case "tool-calls":
-          responseText = "";
-          break;
-        case "length": {
-          const visible = seenTool ? visibleBuffer : preToolBuffer;
-          responseText = visible;
-          break;
-        }
-        case "content-filter": {
-          const visible = seenTool ? visibleBuffer : preToolBuffer;
-          responseText = visible;
-          break;
-        }
-        default: {
-          throw new Error(`Model stopped for ${finishReason} reason`);
-        }
-      }
+      const lastStepText = await text;
+      const cost = this.costCalculator.calcCosts(await totalUsage);
 
       log({
         mod: "agent",
         event: "process_user_query_success",
         correlationId,
-        responseLength: responseText.length,
+        responseLength: lastStepText.length,
       });
 
-      return { text: responseText };
+      return { text: lastStepText, cost: cost };
     } catch (error) {
       log({
         mod: "agent",

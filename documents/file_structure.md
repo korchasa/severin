@@ -64,8 +64,8 @@ src/
 │   ├── load.ts              # Configuration loading utilities
 │   └── utils.ts             # Configuration helper functions
 ├── llm/
-│   ├── cost.ts              # LLM token pricing and cost calculation
-│   └── cost.test.ts         # Cost calculation unit tests
+│   ├── cost.ts              # CostCalculator implementation (interface + factory) for LLM token pricing and cost calculation
+│   └── cost.test.ts         # CostCalculator (interface + factory) unit tests
 ├── core/
 │   └── types.ts             # Common type definitions and interfaces
 ├── system-info/

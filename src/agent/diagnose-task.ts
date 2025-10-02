@@ -14,7 +14,7 @@ import { stopTool } from "./tools/stop.ts";
 import { SystemInfo } from "../system-info/system-info.ts";
 import { FactsStorage } from "./facts/types.ts";
 import { AuditSummary } from "./audit-task.ts";
-import { sumUsages } from "../llm/cost.ts";
+import { CostCalculator } from "../llm/cost.ts";
 
 export interface DiagnoseTask {
   /**
@@ -40,6 +40,7 @@ export type DiagnoseSummary = {
  *
  * @param llmModel - LLM model for text generation
  * @param terminalTool - Tool for terminal interactions
+ * @param costCalculator - Cost calculator for usage tracking
  * @returns Configured Agent instance
  */
 export function createDiagnoseTask({
@@ -48,12 +49,14 @@ export function createDiagnoseTask({
   terminalTool,
   systemInfo,
   factsStorage,
+  costCalculator,
 }: {
   llmModel: LanguageModelV2;
   llmTemperature: number;
   terminalTool: Tool;
   systemInfo: SystemInfo;
   factsStorage: FactsStorage;
+  costCalculator: CostCalculator;
 }): DiagnoseTask {
   return {
     async diagnose(input: AuditSummary): Promise<DiagnoseSummary> {
@@ -113,7 +116,7 @@ export function createDiagnoseTask({
           isEscalationNeeded: summary.isEscalationNeeded,
           mostLikelyHypothesis: summary.mostLikelyHypothesis,
           thoughts: summary.thoughts,
-          usage: sumUsages([input.usage, usage]),
+          usage: costCalculator.sumUsages([input.usage, usage]),
         };
       } catch (error) {
         if (NoObjectGeneratedError.isInstance(error)) {

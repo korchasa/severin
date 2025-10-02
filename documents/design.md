@@ -351,8 +351,10 @@ interface Check {
   - `ConversationHistory`: In-RAM conversation storage with configurable limits.
   - Vercel AI SDK agents with specialized prompts including comprehensive system information.
 - **Integration:**
-  - All agents receive `SystemInfo` instance and `FactsStorage` for contextual awareness in prompts.
-  - Telegram handlers use only `MainAgent.processUserQuery()`.
+  - All agents receive `SystemInfo` instance, `FactsStorage`, and `CostCalculator` for contextual
+    awareness and cost tracking in prompts.
+  - Telegram handlers use `MainAgent.processUserQuery()` which returns `{text, cost}`; cost
+    displayed in responses.
   - Scheduler uses `AuditTask.auditMetrics()` + `DiagnoseTask.diagnose()` with terminal tool access.
   - Each component manages appropriate tools and context.
   - Correlation IDs for tracing and structured logging.
@@ -464,7 +466,8 @@ interface Check {
 
 ### 4.17. LLM Cost Calculation
 
-- **Purpose:** Calculate LLM usage costs in USD based on token consumption and configured pricing.
+- **Purpose:** Calculate LLM usage costs in USD via `CostCalculator` interface based on token
+  consumption and configured pricing.
 - **Token Types Supported:**
   - `inputTokens`: Tokens used in user prompts and system messages
   - `outputTokens`: Tokens generated in LLM responses
@@ -472,8 +475,9 @@ interface Check {
   - `reasoningTokens`: Tokens used for internal reasoning (optional)
   - `cachedInputTokens`: Cached input tokens at reduced pricing (optional)
 - **Pricing Model:** USD per 1 million tokens; configurable via environment variables.
-- **Calculation Function:**
-  `calcAmount(usage: LanguageModelV2Usage, tokenPrices: TokenPrices): number`
+- **CostCalculator Interface:**
+  - `calcCosts(usage: LanguageModelV2Usage): number`
+  - `sumUsages(vals: LanguageModelV2Usage[]): LanguageModelV2Usage`
 - **Usage:** Integrated into agent tasks for cost tracking and monitoring.
 - **Fallback:** No external dependencies; pure calculation based on configured prices.
 
