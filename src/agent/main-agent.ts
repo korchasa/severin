@@ -200,7 +200,12 @@ export class MainAgent implements MainAgentAPI {
               try {
                 onTextDelta?.(p.text);
               } catch (e) {
-                console.debug("onTextDelta callback error", e);
+                log({
+                  mod: "agent",
+                  level: "debug",
+                  event: "onTextDelta_error",
+                  error: (e as Error).message,
+                });
               }
               break;
             }
@@ -212,7 +217,12 @@ export class MainAgent implements MainAgentAPI {
                 try {
                   onCallThoughts?.(preToolBuffer);
                 } catch (e) {
-                  console.debug("onThoughts callback error", e);
+                  log({
+                    mod: "agent",
+                    level: "debug",
+                    event: "onThoughts_error",
+                    error: (e as Error).message,
+                  });
                 }
               }
               seenTool = true;
@@ -232,7 +242,12 @@ export class MainAgent implements MainAgentAPI {
               try {
                 onBeforeCall?.(toolCallForHook);
               } catch (e) {
-                console.debug("beforeCall hook error", e);
+                log({
+                  mod: "agent",
+                  level: "debug",
+                  event: "onBeforeCall_error",
+                  error: (e as Error).message,
+                });
               }
               // Tool calls will be recorded after the full response is complete
               break;
@@ -264,7 +279,12 @@ export class MainAgent implements MainAgentAPI {
               try {
                 onAfterCall?.(tr.result as TypedToolResult<ToolSet>);
               } catch (e) {
-                console.debug("afterCall hook error", e);
+                log({
+                  mod: "agent",
+                  level: "debug",
+                  event: "onAfterCall_error",
+                  error: (e as Error).message,
+                });
               }
               break;
             }
@@ -279,7 +299,12 @@ export class MainAgent implements MainAgentAPI {
           }
         }
       } catch (error) {
-        console.error(">>> streamText error", error);
+        log({
+          mod: "agent",
+          level: "error",
+          event: "streamText_error",
+          error: (error as Error).message,
+        });
         throw error;
       }
 

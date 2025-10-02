@@ -20,7 +20,7 @@ import { ToolSet, TypedToolCall, TypedToolResult } from "ai";
  */
 export function createTextMessageHandler(
   mainAgent: MainAgent,
-  _config: Config
+  _config: Config,
 ) {
   return async (ctx: Context): Promise<void> => {
     const userQuery = ctx.message?.text?.trim();
@@ -60,19 +60,19 @@ export function createTextMessageHandler(
           const thoughtsHTML = markdownToTelegramHTML(thoughts);
           await ctx.reply(
             `<blockquote expandable><pre><code class="language-bash">${thoughtsHTML}</code></pre></blockquote>`,
-            { parse_mode: "HTML" }
+            { parse_mode: "HTML" },
           );
         },
         beforeCall: async (call: TypedToolCall<ToolSet>) => {
           switch (call.toolName) {
             case "terminal": {
               const reasonHTML = markdownToTelegramHTML(
-                call.input.reason.replace(/\n/g, "\n# ")
+                call.input.reason.replace(/\n/g, "\n# "),
               );
               const commandHTML = markdownToTelegramHTML(call.input.command);
               await ctx.reply(
                 `<blockquote expandable><pre><code class="language-bash"># ${reasonHTML}\n&gt; ${commandHTML}</code></pre></blockquote>`,
-                { parse_mode: "HTML" }
+                { parse_mode: "HTML" },
               );
               break;
             }
@@ -80,7 +80,7 @@ export function createTextMessageHandler(
               const contentHTML = markdownToTelegramHTML(call.input.content);
               await ctx.reply(
                 `<blockquote>Add fact "${contentHTML}"</blockquote>`,
-                { parse_mode: "HTML" }
+                { parse_mode: "HTML" },
               );
               break;
             }
@@ -88,7 +88,7 @@ export function createTextMessageHandler(
               const contentHTML = markdownToTelegramHTML(call.input.content);
               await ctx.reply(
                 `<blockquote>Update fact "${contentHTML}"</blockquote>`,
-                { parse_mode: "HTML" }
+                { parse_mode: "HTML" },
               );
               break;
             }
@@ -96,7 +96,7 @@ export function createTextMessageHandler(
               const idHTML = markdownToTelegramHTML(call.input.id);
               await ctx.reply(
                 `<blockquote>Delete fact "${idHTML}"</blockquote>`,
-                { parse_mode: "HTML" }
+                { parse_mode: "HTML" },
               );
               break;
             }
@@ -124,11 +124,11 @@ export function createTextMessageHandler(
     } catch (error) {
       await ctx.reply(
         markdownToTelegramHTML(
-          "An error occurred while processing the request."
+          "An error occurred while processing the request.",
         ),
         {
           parse_mode: "HTML",
-        }
+        },
       );
       log({
         mod: "tg",

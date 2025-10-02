@@ -4,6 +4,7 @@
 
 import type { MetricValue } from "../types.ts";
 import { sh } from "../../utils/sh.ts";
+import { log } from "../../utils/logger.ts";
 
 /**
  * CPU queue metrics collector
@@ -27,7 +28,12 @@ export class CpuQueueCollector {
         throw new Error(`(exit code: ${output.code}) ${output.stderrText()}`);
       }
     } catch (error) {
-      console.error("failed to collect CPU queue metrics:", error);
+      log({
+        mod: "checks",
+        level: "warning",
+        message: "failed to collect CPU queue metrics",
+        error: (error as Error).message,
+      });
       return [{
         name: "cpu_queue_error",
         value: 1,

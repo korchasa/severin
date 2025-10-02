@@ -3,6 +3,7 @@
  * Stores metrics in JSONL format for historical analysis
  */
 
+import { log } from "../utils/logger.ts";
 import type { MetricValue } from "./types.ts";
 
 /**
@@ -45,9 +46,13 @@ export class MetricsService {
           const metric = JSON.parse(line) as MetricValue;
           metrics.push(metric);
         } catch (_parseError) {
-          console.warn(
-            `Warning: Skipping invalid JSON line in metrics file: ${line.substring(0, 100)}...`,
-          );
+          log({
+            mod: "checks",
+            level: "warn",
+            message: `Skipping invalid JSON line in metrics file: ${line.substring(0, 100)}...`,
+            event: "invalid_json_line",
+            line: line.substring(0, 100),
+          });
         }
       }
 

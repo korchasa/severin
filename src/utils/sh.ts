@@ -28,7 +28,6 @@ export interface ShCommand {
 /**
  * Drop-in replacement for Deno.Command:
  *   const res = await sh("echo hi").output();
- *   console.log(res.stdoutText());
  */
 export function sh(commandLine: string, options: ShOptions = {}): ShCommand {
   const {
