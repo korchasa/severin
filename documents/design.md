@@ -464,7 +464,7 @@ interface Check {
 
 ### 4.17. LLM Cost Calculation
 
-- **Purpose:** Calculate LLM usage costs in USD via `CostCalculator` class based on token consumption and configured pricing.
+- **Purpose:** Calculate LLM usage costs in USD via `CostCalculator` interface based on token consumption and configured pricing.
 - **Token Types Supported:**
   - `inputTokens`: Tokens used in user prompts and system messages
   - `outputTokens`: Tokens generated in LLM responses
