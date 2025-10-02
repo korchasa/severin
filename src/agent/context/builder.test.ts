@@ -321,7 +321,7 @@ Deno.test("ContextBuilder: integration with ContextCompactor ensures tool-call/t
 
   // Verify that total symbol count is within limit
   let totalSymbols = 0;
-  const compactor = new (await import("./compactor.ts")).ContextCompactor(maxSymbols);
+  const compactor = new (await import("./compactor.ts")).SimpleContextCompactor(maxSymbols);
   for (const msg of messages) {
     totalSymbols += compactor.estimateSymbols(msg);
   }

@@ -13,6 +13,7 @@ alwaysApply: true
 - PARAMETER STYLE: `{ REQUIRED, OPTIONAL = "DEFAULT" }`
 - DOCUMENT ALL FILES AND FUNCTIONS WITH TSDOC
 - TESTABILITY IS MORE IMPORTANT THAN PERFORMANCE AND ENCAPSULATION
+- CODE ORDER IN FILES: imports, constants, types, interfaces, classes, main, public functions, private functions, tests
 
 ### TypeScript
 - Strict mode (`strict: true`)

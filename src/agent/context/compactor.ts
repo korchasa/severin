@@ -1,34 +1,26 @@
 import { type ModelMessage } from "ai";
 
-/** Type guard for tool-call message parts */
-function isToolCallPart(part: unknown): part is { type: "tool-call"; toolCallId: string } {
-  return (
-    typeof part === "object" &&
-    part !== null &&
-    "type" in part &&
-    part.type === "tool-call" &&
-    "toolCallId" in part &&
-    typeof (part as { toolCallId: unknown }).toolCallId === "string"
-  );
-}
+/**
+ * Interface for context compaction functionality
+ */
+export interface ContextCompactor {
+  /**
+   * Compacts the context by trimming messages from the beginning (oldest first)
+   * to fit within the symbol budget while maintaining tool-call/tool-result consistency.
+   */
+  compact(messages: readonly ModelMessage[]): ModelMessage[];
 
-/** Type guard for tool-result message parts */
-function isToolResultPart(part: unknown): part is { type: "tool-result"; toolCallId: string } {
-  return (
-    typeof part === "object" &&
-    part !== null &&
-    "type" in part &&
-    part.type === "tool-result" &&
-    "toolCallId" in part &&
-    typeof (part as { toolCallId: unknown }).toolCallId === "string"
-  );
+  /**
+   * Estimate message "weight" by length of JSON representation of content.
+   */
+  estimateSymbols(message: ModelMessage): number;
 }
 
 /**
  * Context compactor - handles message trimming within symbol limits
  * while maintaining tool-call/tool-result consistency.
  */
-export class ContextCompactor {
+export class SimpleContextCompactor implements ContextCompactor {
   private maxSymbols: number;
 
   constructor(maxSymbols: number) {
@@ -45,6 +37,43 @@ export class ContextCompactor {
 
     // Then ensure tool-call/tool-result consistency
     return this.ensureToolConsistency(trimmedMessages);
+  }
+
+  /** Estimate message "weight" by length of JSON representation of content. */
+  estimateSymbols(message: ModelMessage): number {
+    const c: unknown = (message as unknown as { content: unknown }).content;
+    if (typeof c === "string") return c.length;
+    try {
+      return JSON.stringify(c ?? "").length;
+    } catch {
+      return 0;
+    }
+  }
+
+  /**
+   * Type guard for tool-call content parts
+   */
+  private isToolCallPart(part: unknown): part is { type: "tool-call"; toolCallId: string } {
+    return typeof part === "object" &&
+      part !== null &&
+      "type" in part &&
+      part.type === "tool-call" &&
+      "toolCallId" in part &&
+      typeof (part as Record<string, unknown>).toolCallId === "string";
+  }
+
+  /**
+   * Type guard for tool-result content parts
+   */
+  private isToolResultPart(
+    part: unknown,
+  ): part is { type: "tool-result"; toolCallId: string } {
+    return typeof part === "object" &&
+      part !== null &&
+      "type" in part &&
+      part.type === "tool-result" &&
+      "toolCallId" in part &&
+      typeof (part as Record<string, unknown>).toolCallId === "string";
   }
 
   /**
@@ -85,13 +114,13 @@ export class ContextCompactor {
     for (const msg of messages) {
       if (msg.role === "assistant" && Array.isArray(msg.content)) {
         for (const part of msg.content) {
-          if (isToolCallPart(part)) {
+          if (this.isToolCallPart(part)) {
             toolCalls.add(part.toolCallId);
           }
         }
       } else if (msg.role === "tool" && Array.isArray(msg.content)) {
         for (const part of msg.content) {
-          if (isToolResultPart(part)) {
+          if (this.isToolResultPart(part)) {
             toolResults.add(part.toolCallId);
           }
         }
@@ -103,29 +132,18 @@ export class ContextCompactor {
       if (msg.role === "assistant" && Array.isArray(msg.content)) {
         // Check if assistant message has tool-calls that have corresponding results
         const hasInconsistentToolCalls = msg.content.some((part) =>
-          isToolCallPart(part) && !toolResults.has(part.toolCallId)
+          this.isToolCallPart(part) && !toolResults.has(part.toolCallId)
         );
         return !hasInconsistentToolCalls;
       } else if (msg.role === "tool" && Array.isArray(msg.content)) {
         // Check if tool message has results that have corresponding calls
         const hasInconsistentToolResults = msg.content.some((part) =>
-          isToolResultPart(part) && !toolCalls.has(part.toolCallId)
+          this.isToolResultPart(part) && !toolCalls.has(part.toolCallId)
         );
         return !hasInconsistentToolResults;
       }
       // Keep non-tool messages
       return true;
     });
-  }
-
-  /** Estimate message "weight" by length of JSON representation of content. */
-  estimateSymbols(message: ModelMessage): number {
-    const c: unknown = (message as unknown as { content: unknown }).content;
-    if (typeof c === "string") return c.length;
-    try {
-      return JSON.stringify(c ?? "").length;
-    } catch {
-      return 0;
-    }
   }
 }

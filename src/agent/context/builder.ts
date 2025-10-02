@@ -1,7 +1,7 @@
 import { type ModelMessage } from "ai";
 import { SystemInfo } from "../../system-info/system-info.ts";
 import { FactsStorage } from "../facts/types.ts";
-import { ContextCompactor } from "./compactor.ts";
+import { ContextCompactor, SimpleContextCompactor } from "./compactor.ts";
 
 export class ContextBuilder {
   private systemInfo: SystemInfo;
@@ -13,7 +13,7 @@ export class ContextBuilder {
   constructor(maxSymbols: number, systemInfo: SystemInfo, factsStorage: FactsStorage) {
     this.systemInfo = systemInfo;
     this.factsStorage = factsStorage;
-    this.compactor = new ContextCompactor(maxSymbols);
+    this.compactor = new SimpleContextCompactor(maxSymbols);
   }
 
   /**
