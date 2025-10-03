@@ -104,7 +104,6 @@ graph TD
   - `AGENT_TERMINAL_MAX_LLM_INPUT_LENGTH: number` (default 2000)
   - `AGENT_LLM_PRICE_INPUT_TOKENS: number` (default 0.15) - price per 1M input tokens in USD
   - `AGENT_LLM_PRICE_OUTPUT_TOKENS: number` (default 0.60) - price per 1M output tokens in USD
-  - `AGENT_LLM_PRICE_TOTAL_TOKENS: number` (optional) - price per 1M total tokens in USD
   - `AGENT_LLM_PRICE_REASONING_TOKENS: number` (optional) - price per 1M reasoning tokens in USD
   - `AGENT_LLM_PRICE_CACHED_INPUT_TOKENS: number` (optional) - price per 1M cached input tokens in
     USD
@@ -139,11 +138,10 @@ interface Config {
       systemInfo?: string;
       metricsAnalysisPrompt: string;
       tokenPrices: {
-        inputTokens: number;
-        outputTokens: number;
-        totalTokens?: number;
-        reasoningTokens?: number;
-        cachedInputTokens?: number;
+        inputTokens: number; // USD per 1,000,000 tokens
+        outputTokens: number; // USD per 1,000,000 tokens
+        reasoningTokens?: number; // USD per 1,000,000 tokens
+        cachedInputTokens?: number; // USD per 1,000,000 tokens
       };
     };
   };
@@ -471,7 +469,7 @@ interface Check {
 - **Token Types Supported:**
   - `inputTokens`: Tokens used in user prompts and system messages
   - `outputTokens`: Tokens generated in LLM responses
-  - `totalTokens`: Total tokens (optional alternative to separate input/output)
+  - `totalTokens`: Removed. Use separate `inputTokens` and `outputTokens`.
   - `reasoningTokens`: Tokens used for internal reasoning (optional)
   - `cachedInputTokens`: Cached input tokens at reduced pricing (optional)
 - **Pricing Model:** USD per 1 million tokens; configurable via environment variables.
@@ -894,11 +892,10 @@ AGENT_MEMORY_MAX_SYMBOLS=20000
 AGENT_TERMINAL_TIMEOUT_MS=30000
 AGENT_TERMINAL_MAX_COMMAND_OUTPUT_SIZE=200000
 AGENT_TERMINAL_MAX_LLM_INPUT_LENGTH=2000
-AGENT_LLM_PRICE_INPUT_TOKENS=0.15
-AGENT_LLM_PRICE_OUTPUT_TOKENS=0.60
-AGENT_LLM_PRICE_TOTAL_TOKENS=
-AGENT_LLM_PRICE_REASONING_TOKENS=
-AGENT_LLM_PRICE_CACHED_INPUT_TOKENS=
+AGENT_LLM_PRICE_INPUT_TOKENS=0.15        # USD per 1,000,000 input tokens
+AGENT_LLM_PRICE_OUTPUT_TOKENS=0.60       # USD per 1,000,000 output tokens
+AGENT_LLM_PRICE_REASONING_TOKENS=        # USD per 1,000,000 reasoning tokens
+AGENT_LLM_PRICE_CACHED_INPUT_TOKENS=     # USD per 1,000,000 cached input tokens
 SCHEDULER_INTERVAL_HOURS=1
 SCHEDULER_JITTER_MINUTES=5
 AGENT_METRICS_HISTORY_HOURS=1
