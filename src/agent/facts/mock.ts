@@ -6,7 +6,7 @@ import type { Fact, FactsStorage } from "./types.ts";
 
 // Mock classes for testing
 export class MockFactsStorage implements FactsStorage {
-  add(_fact: Omit<Fact, "id" | "ts">): Promise<
+  add(_content: string): Promise<
     { success: true; fact: Fact } | { success: false; error: string }
   > {
     return Promise.resolve({

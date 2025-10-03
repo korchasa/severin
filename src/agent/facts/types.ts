@@ -11,7 +11,7 @@ export interface Fact {
 
 // Facts storage interface
 export interface FactsStorage {
-  add(fact: Omit<Fact, "id" | "ts">): Promise<
+  add(content: string): Promise<
     { success: true; fact: Fact } | { success: false; error: string }
   >;
   getAll(): Promise<

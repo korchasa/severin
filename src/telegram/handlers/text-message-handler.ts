@@ -76,32 +76,14 @@ export function createTextMessageHandler(
               );
               break;
             }
-            case "add_fact": {
-              const contentHTML = markdownToTelegramHTML(call.input.content);
-              await ctx.reply(
-                `<blockquote>Add fact "${contentHTML}"</blockquote>`,
-                { parse_mode: "HTML" },
-              );
-              break;
-            }
-            case "update_fact": {
-              const contentHTML = markdownToTelegramHTML(call.input.content);
-              await ctx.reply(
-                `<blockquote>Update fact "${contentHTML}"</blockquote>`,
-                { parse_mode: "HTML" },
-              );
-              break;
-            }
-            case "delete_fact": {
-              const idHTML = markdownToTelegramHTML(call.input.id);
-              await ctx.reply(
-                `<blockquote>Delete fact "${idHTML}"</blockquote>`,
-                { parse_mode: "HTML" },
-              );
-              break;
-            }
             default: {
-              throw new Error(`Unexpected tool: ${call.toolName}`);
+              await ctx.reply(
+                `<blockquote>Called tool: ${call.toolName}: ${
+                  JSON.stringify(call.input)
+                }</blockquote>`,
+                { parse_mode: "HTML" },
+              );
+              break;
             }
           }
         },

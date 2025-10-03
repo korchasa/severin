@@ -22,6 +22,7 @@ import type { FactsStorage } from "./facts/types.ts";
 import {
   createAddFactTool,
   createDeleteFactTool,
+  createGetAllFactsTool,
   createUpdateFactTool,
   ToolInput,
   ToolName,
@@ -145,6 +146,7 @@ export class MainAgent implements MainAgentAPI {
         add_fact: createAddFactTool(this.factsStorage),
         update_fact: createUpdateFactTool(this.factsStorage),
         delete_fact: createDeleteFactTool(this.factsStorage),
+        get_all_facts: createGetAllFactsTool(this.factsStorage),
       },
       stopWhen: [stepCountIs(this.maxSteps)],
       onStepFinish: (step) => {

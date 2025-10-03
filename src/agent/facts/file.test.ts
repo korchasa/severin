@@ -10,7 +10,7 @@ Deno.test("FileFactsStorage: basic CRUD operations", async () => {
     const storage = new FileFactsStorage(factsFile);
 
     // Test add fact
-    const addResult1 = await storage.add({ content: "Test fact 1" });
+    const addResult1 = await storage.add("Test fact 1");
     assertEquals(addResult1.success, true);
     if (addResult1.success) {
       assertExists(addResult1.fact.id);
@@ -23,7 +23,7 @@ Deno.test("FileFactsStorage: basic CRUD operations", async () => {
     await new Promise((resolve) => setTimeout(resolve, 1));
 
     // Test add another fact
-    const addResult2 = await storage.add({ content: "Test fact 2" });
+    const addResult2 = await storage.add("Test fact 2");
     assertEquals(addResult2.success, true);
     if (addResult2.success) {
       assertExists(addResult2.fact.id);
@@ -114,7 +114,7 @@ Deno.test("FileFactsStorage: persistence across instances", async () => {
   try {
     // Create first instance and add fact
     const storage1 = new FileFactsStorage(factsFile);
-    const addResult = await storage1.add({ content: "Persistent fact" });
+    const addResult = await storage1.add("Persistent fact");
     assertEquals(addResult.success, true);
     const fact = addResult.success ? addResult.fact : { id: "", content: "", ts: "" };
 
@@ -153,7 +153,7 @@ Deno.test("FileFactsStorage: handles non-existent file", async () => {
     }
 
     // Should be able to add facts
-    const addResult = await storage.add({ content: "First fact" });
+    const addResult = await storage.add("First fact");
     assertEquals(addResult.success, true);
     if (addResult.success) {
       assertExists(addResult.fact.id);
@@ -187,22 +187,21 @@ Deno.test("FileFactsStorage: toMarkdown formats facts correctly", async () => {
     assertEquals(emptyMarkdown, "No stored facts.");
 
     // Add some facts
-    const addResult1 = await storage.add({ content: "Short fact about the system" });
+    const addResult1 = await storage.add("Short fact about the system");
     assertEquals(addResult1.success, true);
 
     // Small delay to ensure different timestamps
     await new Promise((resolve) => setTimeout(resolve, 1));
 
-    const addResult2 = await storage.add({
-      content:
-        "This is a much longer fact that contains more detailed information about the server configuration and setup process that might be relevant for future reference and includes additional technical details about networking, security policies, backup procedures, monitoring systems, and various other operational aspects of the server management.",
-    });
+    const addResult2 = await storage.add(
+      "This is a much longer fact that contains more detailed information about the server configuration and setup process that might be relevant for future reference and includes additional technical details about networking, security policies, backup procedures, monitoring systems, and various other operational aspects of the server management.",
+    );
     assertEquals(addResult2.success, true);
 
     // Small delay to ensure different timestamps
     await new Promise((resolve) => setTimeout(resolve, 1));
 
-    const addResult3 = await storage.add({ content: "Another brief fact" });
+    const addResult3 = await storage.add("Another brief fact");
     assertEquals(addResult3.success, true);
 
     const markdown = await storage.toMarkdown();
@@ -246,7 +245,7 @@ Deno.test("FileFactsStorage: handles read errors gracefully", async () => {
   }
 
   // Should be able to add facts despite previous parse errors
-  const addResult = await storage.add({ content: "New fact after error" });
+  const addResult = await storage.add("New fact after error");
   assertEquals(addResult.success, true);
 
   // Cleanup
@@ -264,7 +263,7 @@ Deno.test("FileFactsStorage: handles write errors", async () => {
   const storage = new FileFactsStorage(factsFile);
 
   // Add should fail due to write permission
-  const addResult = await storage.add({ content: "This should fail" });
+  const addResult = await storage.add("This should fail");
   assertEquals(addResult.success, false);
   if (!addResult.success) {
     assert(

@@ -109,7 +109,7 @@ export class FileFactsStorage implements FactsStorage {
   /**
    * Adds a new fact
    */
-  async add(factInput: Omit<Fact, "id" | "ts">): Promise<
+  async add(content: string): Promise<
     { success: true; fact: Fact } | { success: false; error: string }
   > {
     try {
@@ -119,7 +119,7 @@ export class FileFactsStorage implements FactsStorage {
 
       const fact: Fact = {
         id: generateId(timestamp),
-        content: factInput.content,
+        content: content,
         ts: new Date(timestamp).toISOString(),
       };
 

@@ -1,14 +1,20 @@
 import z from "zod";
 import { TerminalRequest, TerminalResponse } from "./types.ts";
-import { AddFactParams, DeleteFactParams, UpdateFactParams } from "./facts.ts";
+import { AddFactParams, DeleteFactParams, GetAllFactsParams, UpdateFactParams } from "./facts.ts";
 
 export type ToolName = "terminal" | "add_fact" | "update_fact" | "delete_fact";
 export type ToolInput =
   | TerminalRequest
   | z.infer<typeof AddFactParams>
   | z.infer<typeof UpdateFactParams>
-  | z.infer<typeof DeleteFactParams>;
+  | z.infer<typeof DeleteFactParams>
+  | z.infer<typeof GetAllFactsParams>;
 export type ToolOutput = TerminalResponse | unknown;
 
-export { createAddFactTool, createDeleteFactTool, createUpdateFactTool } from "./facts.ts";
+export {
+  createAddFactTool,
+  createDeleteFactTool,
+  createGetAllFactsTool,
+  createUpdateFactTool,
+} from "./facts.ts";
 export { createTerminalTool } from "./terminal.ts";

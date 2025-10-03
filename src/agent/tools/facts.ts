@@ -20,6 +20,8 @@ export const UpdateFactParams = z.object({
   content: z.string().min(1, "content is required").max(1000, "content too long"),
 });
 
+export const GetAllFactsParams = z.object({});
+
 /**
  * Creates add_fact tool for LLM
  */
@@ -29,7 +31,7 @@ export function createAddFactTool(factsStorage: FactsStorage) {
       "Add a new persistent fact to the agent's knowledge base. Facts are stored permanently and included in system prompts.",
     inputSchema: AddFactParams,
     execute: async (input: z.infer<typeof AddFactParams>) => {
-      return await factsStorage.add({ content: input.content });
+      return await factsStorage.add(input.content);
     },
   });
 }
@@ -58,6 +60,19 @@ export function createUpdateFactTool(factsStorage: FactsStorage) {
     inputSchema: UpdateFactParams,
     execute: async (input: z.infer<typeof UpdateFactParams>) => {
       return await factsStorage.update(input.id, input.content);
+    },
+  });
+}
+
+/**
+ * Creates get_all_facts tool for LLM
+ */
+export function createGetAllFactsTool(factsStorage: FactsStorage) {
+  return tool({
+    description: "Get all facts from the agent's knowledge base.",
+    inputSchema: GetAllFactsParams,
+    execute: async () => {
+      return await factsStorage.getAll();
     },
   });
 }

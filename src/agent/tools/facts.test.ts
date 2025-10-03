@@ -9,23 +9,23 @@ import type { FactsStorage } from "../facts/types.ts";
 
 // Mock facts storage for testing
 class MockFactsStorage {
-  addCalledWith: { content: string }[] = [];
+  addCalledWith: string[] = [];
   deleteCalledWith: string[] = [];
   updateCalledWith: { id: string; content: string }[] = [];
 
-  async add(factInput: { content: string }): Promise<
+  async add(content: string): Promise<
     { success: true; fact: { id: string; content: string; ts: string } } | {
       success: false;
       error: string;
     }
   > {
     await Promise.resolve();
-    this.addCalledWith.push(factInput);
+    this.addCalledWith.push(content);
     return {
       success: true as const,
       fact: {
         id: `fact-${this.addCalledWith.length}`,
-        content: factInput.content,
+        content: content,
         ts: new Date().toISOString(),
       },
     };
@@ -109,10 +109,10 @@ Deno.test("createAddFactTool: calls storage.add with correct content", async () 
   };
 
   assertEquals(storage.addCalledWith.length, 1);
-  assertEquals(storage.addCalledWith[0].content, "Test fact content");
+  assertEquals(storage.addCalledWith[0], "Test fact content");
   assertEquals(result.success, true);
   assertExists(result.fact);
-  assertEquals(result.fact.content, "Test fact content");
+  assertEquals(result.fact?.content, "Test fact content");
 });
 
 Deno.test("createAddFactTool: handles storage error", async () => {
@@ -181,7 +181,7 @@ Deno.test("createUpdateFactTool: calls storage.update with correct id and conten
   assertEquals(storage.updateCalledWith[0].content, "Updated content");
   assertEquals(result.success, true);
   assertExists(result.fact);
-  assertEquals(result.fact.content, "Updated content");
+  assertEquals(result.fact?.content, "Updated content");
 });
 
 Deno.test("createUpdateFactTool: handles non-existent fact", async () => {
