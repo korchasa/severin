@@ -113,7 +113,7 @@ export function createTextMessageHandler(
       // Don't send empty responses to avoid Telegram API errors
       if (responseText.trim()) {
         await ctx.reply(
-          `<pre>${markdownToTelegramHTML(responseText)}</pre>\n<i>${cost.toFixed(4)}$</i>`,
+          `${markdownToTelegramHTML(responseText)}\n<i>${cost.toFixed(4)}$</i>`,
           {
             parse_mode: "HTML",
           },
