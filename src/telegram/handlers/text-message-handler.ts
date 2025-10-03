@@ -11,7 +11,7 @@ import type { Context } from "grammy";
 import type { Config } from "../../config/types.ts";
 import type { MainAgent } from "../../agent/main-agent.ts";
 import { log } from "../../utils/logger.ts";
-import { markdownToTelegramHTML } from "../telegram-format.ts";
+import { escapeHtml, markdownToTelegramHTML } from "../telegram-format.ts";
 import { ToolSet, TypedToolCall, TypedToolResult } from "ai";
 
 /**
@@ -69,7 +69,7 @@ export function createTextMessageHandler(
               const reasonHTML = markdownToTelegramHTML(
                 call.input.reason.replace(/\n/g, "\n# "),
               );
-              const commandHTML = markdownToTelegramHTML(call.input.command);
+              const commandHTML = escapeHtml(call.input.command);
               await ctx.reply(
                 `<blockquote><pre><code class="language-bash"># ${reasonHTML}\n&gt; ${commandHTML}</code></pre></blockquote>`,
                 { parse_mode: "HTML" },

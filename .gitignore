@@ -2,6 +2,7 @@ data
 .DS_Store
 documents/whiteboard.md
 server-ai
+server-ai.*
 .env
 .vscode
 node_modules
