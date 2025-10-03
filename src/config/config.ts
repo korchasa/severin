@@ -53,8 +53,8 @@ export function createDefaultConfig(systemInfo?: string): Config {
         tokenPrices: {
           inputTokens: env("AGENT_LLM_PRICE_INPUT_TOKENS", 0.4), // per 1M input tokens
           outputTokens: env("AGENT_LLM_PRICE_OUTPUT_TOKENS", 1.6), // per 1M output tokens
-          cachedInputTokens: env("AGENT_LLM_PRICE_CACHED_INPUT_TOKENS", 0.1), // Optional cached input token price
           reasoningTokens: env("AGENT_LLM_PRICE_REASONING_TOKENS", 0), // Optional reasoning token price
+          cachedInputTokens: env("AGENT_LLM_PRICE_CACHED_INPUT_TOKENS", 0.1), // Optional cached input token price
         },
       },
     },
