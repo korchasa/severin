@@ -9,7 +9,6 @@ import { z } from "zod";
 export interface TokenPrices {
   readonly inputTokens: number;
   readonly outputTokens: number;
-  readonly totalTokens?: number;
   readonly reasoningTokens?: number;
   readonly cachedInputTokens?: number;
 }
@@ -105,7 +104,6 @@ export const configSchema = z.object({
       tokenPrices: z.object({
         inputTokens: z.number().nonnegative(),
         outputTokens: z.number().nonnegative(),
-        totalTokens: z.number().nonnegative().optional(),
         reasoningTokens: z.number().nonnegative().optional(),
         cachedInputTokens: z.number().nonnegative().optional(),
       }),

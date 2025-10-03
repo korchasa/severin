@@ -21,10 +21,7 @@ export function createCostCalculator(tokenPrices: TokenPrices): CostCalculator {
         totalCost += (usage.outputTokens / 1_000_000) * tokenPrices.outputTokens;
       }
 
-      // Calculate cost for total tokens if provided and configured
-      if (usage.totalTokens && tokenPrices.totalTokens) {
-        totalCost += (usage.totalTokens / 1_000_000) * tokenPrices.totalTokens;
-      }
+      // totalTokens removed from pricing: use input/output pricing only
 
       // Calculate cost for reasoning tokens if provided and configured
       if (usage.reasoningTokens && tokenPrices.reasoningTokens) {

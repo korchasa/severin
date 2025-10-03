@@ -235,9 +235,9 @@
 - **Use case:** Monitor LLM usage costs across different operations (conversations, metrics
   analysis, diagnostics) for budget control and efficiency analysis.
 - **Criteria:**
-  - Support for all token types from `LanguageModelV2Usage`: `inputTokens`, `outputTokens`,
-    `totalTokens`, `reasoningTokens`, `cachedInputTokens`.
-  - Pricing configuration via environment variables (`AGENT_LLM_PRICE_*`) in USD per 1M tokens.
+  - Support for token types: `inputTokens`, `outputTokens`, `reasoningTokens`, `cachedInputTokens`.
+  - Price configuration via environment variables (`AGENT_LLM_PRICE_*`) in US dollars per 1 million
+    tokens (prices are always per 1,000,000 tokens).
   - `CostCalculator` (interface + factory) with `calcCosts()` and `sumUsages()` methods; no external
     dependencies.
   - Cost calculation integrated into all LLM operations (MainAgent, AuditTask, DiagnoseTask).

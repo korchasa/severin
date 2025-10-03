@@ -1,4 +1,4 @@
-import { assertEquals } from "@std/assert";
+import { assertAlmostEquals, assertEquals } from "@std/assert";
 import { createCostCalculator } from "./cost.ts";
 
 Deno.test("calcAmount calculates cost for basic usage", () => {
@@ -29,7 +29,6 @@ Deno.test("calcAmount calculates cost with all token types", () => {
   const tokenPrices = {
     inputTokens: 0.15,
     outputTokens: 0.60,
-    totalTokens: 0.30,
     reasoningTokens: 0.50,
     cachedInputTokens: 0.10,
   };
@@ -37,17 +36,17 @@ Deno.test("calcAmount calculates cost with all token types", () => {
   const usage = {
     inputTokens: 1000,
     outputTokens: 200,
-    totalTokens: 1200,
+    totalTokens: undefined,
     reasoningTokens: 100,
     cachedInputTokens: 500,
   };
 
   const cost = createCostCalculator(tokenPrices).calcCosts(usage);
 
-  // Expected: (1000 / 1_000_000) * 0.15 + (200 / 1_000_000) * 0.60 + (1200 / 1_000_000) * 0.30 +
+  // Expected: (1000 / 1_000_000) * 0.15 + (200 / 1_000_000) * 0.60 +
   //           (100 / 1_000_000) * 0.50 + (500 / 1_000_000) * 0.10
-  // = 0.00015 + 0.00012 + 0.00036 + 0.00005 + 0.00005 = 0.00073
-  assertEquals(cost, 0.00073);
+  // = 0.00015 + 0.00012 + 0.00005 + 0.00005 = 0.00037
+  assertAlmostEquals(cost, 0.00037, 1e-12);
 });
 
 Deno.test("calcAmount ignores undefined prices and tokens", () => {
