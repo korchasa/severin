@@ -11,8 +11,8 @@ import type { Context } from "grammy";
 import type { Config } from "../../config/types.ts";
 import type { MainAgent } from "../../agent/main-agent.ts";
 import { log } from "../../utils/logger.ts";
-import { escapeHtml, markdownToTelegramHTML } from "../telegram-format.ts";
 import { ToolSet, TypedToolCall, TypedToolResult } from "ai";
+import { createMessageBuilder } from "./message-builder.ts";
 
 /**
  * Creates a text message handler that processes any text message as an LLM query
@@ -49,57 +49,32 @@ export function createTextMessageHandler(
     });
 
     // Send typing action to show the bot is processing
-    await ctx.api.sendChatAction(ctx.chat!.id, "typing");
-    const correlationId = ctx.message!.message_id?.toString();
+    const message = await ctx.reply("...", { parse_mode: "HTML" });
+    const correlationId = message.message_id.toString();
+    const messageBuilder = createMessageBuilder();
     try {
       // Process query through agent
       const { text: responseText, cost } = await mainAgent.processUserQuery({
         userQuery: userQuery,
         correlationId: correlationId,
         onThoughts: async (thoughts) => {
-          const thoughtsHTML = markdownToTelegramHTML(thoughts);
-          await ctx.reply(
-            `<blockquote expandable>${thoughtsHTML}</blockquote>`,
-            { parse_mode: "HTML" },
-          );
+          messageBuilder.setThoughts(thoughts);
+          await messageBuilder.updateMessage(ctx, message);
         },
         beforeCall: async (call: TypedToolCall<ToolSet>) => {
-          switch (call.toolName) {
-            case "terminal": {
-              const reasonHTML = markdownToTelegramHTML(
-                call.input.reason.replace(/\n/g, "\n# "),
-              );
-              const commandHTML = escapeHtml(call.input.command);
-              await ctx.reply(
-                `<blockquote><pre><code class="language-bash"># ${reasonHTML}\n&gt; ${commandHTML}</code></pre></blockquote>`,
-                { parse_mode: "HTML" },
-              );
-              break;
-            }
-            default: {
-              await ctx.reply(
-                `<blockquote>Called tool: ${call.toolName}: ${
-                  JSON.stringify(call.input)
-                }</blockquote>`,
-                { parse_mode: "HTML" },
-              );
-              break;
-            }
-          }
+          messageBuilder.addToolCall(call);
+          await messageBuilder.updateMessage(ctx, message);
         },
-        afterCall: (_result: TypedToolResult<ToolSet>) => {
-          return;
+        afterCall: async (result: TypedToolResult<ToolSet>) => {
+          messageBuilder.addToolResult(result);
+          await messageBuilder.updateMessage(ctx, message);
         },
       });
 
       // Don't send empty responses to avoid Telegram API errors
       if (responseText.trim()) {
-        await ctx.reply(
-          `${markdownToTelegramHTML(responseText)}\n<i>${cost.toFixed(4)}$</i>`,
-          {
-            parse_mode: "HTML",
-          },
-        );
+        messageBuilder.addFinalText(responseText, cost);
+        await messageBuilder.updateMessage(ctx, message);
       }
       log({
         mod: "tg",
@@ -107,14 +82,8 @@ export function createTextMessageHandler(
         response_length: responseText.length,
       });
     } catch (error) {
-      await ctx.reply(
-        markdownToTelegramHTML(
-          "An error occurred while processing the request.",
-        ),
-        {
-          parse_mode: "HTML",
-        },
-      );
+      messageBuilder.setError(error as Error);
+      await messageBuilder.updateMessage(ctx, message);
       log({
         mod: "tg",
         event: "llm_error",

@@ -7,8 +7,8 @@ import { assert } from "@std/assert";
 import { createTextMessageHandler } from "./text-message-handler.ts";
 import type { beforeCallHandler, MainAgent } from "../../agent/main-agent.ts";
 import type { Config } from "../../config/types.ts";
+import type { ToolSet, TypedToolCall, TypedToolResult } from "ai";
 import { escapeHtml } from "../telegram-format.ts";
-import type { ToolSet, TypedToolCall } from "ai";
 
 // Mock dependencies
 const mockAgent = {
@@ -62,6 +62,10 @@ Deno.test("text message handler: ignores very short messages", async () => {
         // Should not be called for short messages
         assert(false, "sendChatAction should not be called for short messages");
       },
+      editMessageText: () => {
+        // Should not be called for short messages
+        assert(false, "editMessageText should not be called for short messages");
+      },
     },
   };
 
@@ -84,64 +88,66 @@ Deno.test("text message handler: ignores command messages", async () => {
         // Should not be called for command messages
         assert(false, "sendChatAction should not be called for command messages");
       },
+      editMessageText: () => {
+        // Should not be called for command messages
+        assert(false, "editMessageText should not be called for command messages");
+      },
     },
   };
 
   await handler(mockCtx as unknown as Parameters<typeof handler>[0]);
 });
 
-Deno.test("text message handler: does not send empty LLM responses", async () => {
-  // Create a custom handler that mocks LLM to return empty response
-  const customHandler = async (
-    ctx: {
-      message?: { text?: string };
-      from?: { id?: number };
-      chat?: { id?: number };
-      reply: (text: string) => Promise<void>;
-      api: { sendChatAction: (chatId: number, action: string) => Promise<void> };
-    },
-  ) => {
-    const text = ctx.message?.text?.trim();
+Deno.test("text message handler: does not update message for empty LLM responses", async () => {
+  // Mock agent that returns empty response
+  const mockAgentEmptyResponse = {
+    processUserQuery: () => Promise.resolve({ text: "", cost: 0.01 }),
+  } as unknown as MainAgent;
 
-    // Skip validation checks for this test
-    if (!text || text.length < 2 || text.startsWith("/")) {
-      return;
-    }
+  const handler = createTextMessageHandler(mockAgentEmptyResponse, mockConfig);
 
-    await ctx.api.sendChatAction(ctx.chat!.id!, "typing");
-
-    const response = ""; // Empty response from LLM
-
-    // Don't send empty responses to avoid Telegram API errors
-    if (response.trim()) {
-      await ctx.reply(response);
-    }
-  };
-
+  let editMessageTextCalled = false;
   let replyCalled = false;
 
   const mockCtx = {
-    message: { text: "Run ls command" },
+    message: { text: "Run ls command", message_id: 123 },
     from: { id: 123 },
     chat: { id: 456 },
-    reply: (_text: string) => {
+    reply: (_text: string, _opts?: unknown) => {
       replyCalled = true;
-      return Promise.resolve();
+      return Promise.resolve({ message_id: 456 } as any);
     },
     api: {
       sendChatAction: () => Promise.resolve(),
+      editMessageText: () => {
+        editMessageTextCalled = true;
+        return Promise.resolve();
+      },
     },
   };
 
-  await customHandler(mockCtx);
-  assert(!replyCalled, "reply should not be called for empty responses");
+  await handler(mockCtx as unknown as Parameters<typeof handler>[0]);
+
+  // Reply should be called to create initial message
+  assert(replyCalled, "reply should be called to create initial message");
+  // But editMessageText should not be called for empty response (final text not added)
+  assert(!editMessageTextCalled, "editMessageText should not be called for empty responses");
 });
 
 Deno.test("text message handler: properly formats terminal command notifications", async () => {
-  // Mock agent that triggers a terminal tool call synchronously for testing
+  // Mock agent that triggers a terminal tool call and returns result
   const mockAgentWithToolCall = {
-    processUserQuery: ({ beforeCall }: { beforeCall?: beforeCallHandler }) => {
-      // Immediately call beforeCall to test formatting
+    processUserQuery: ({ onThoughts, beforeCall, afterCall }: {
+      onThoughts?: (thoughts: string) => Promise<void>;
+      beforeCall?: beforeCallHandler;
+      afterCall?: (result: TypedToolResult<ToolSet>) => Promise<void>;
+    }) => {
+      // Call onThoughts to test thoughts formatting
+      if (onThoughts) {
+        onThoughts("Analyzing CPU usage request");
+      }
+
+      // Call beforeCall to test tool call formatting
       if (beforeCall) {
         const mockToolCall = {
           type: "tool-call",
@@ -156,61 +162,170 @@ Deno.test("text message handler: properly formats terminal command notifications
         beforeCall(mockToolCall);
       }
 
+      // Call afterCall to test tool result formatting
+      if (afterCall) {
+        const mockToolResult = {
+          type: "tool-result",
+          toolCallId: "test-id",
+          toolName: "terminal",
+          input: { command: "ps aux", reason: "Check processes" },
+          output: "top 5 processes by CPU usage...",
+        } as unknown as TypedToolResult<ToolSet>;
+        afterCall(mockToolResult);
+      }
+
       return Promise.resolve({ text: "Command executed successfully", cost: 0.01 });
     },
   } as unknown as MainAgent;
 
   const handler = createTextMessageHandler(mockAgentWithToolCall, mockConfig);
 
-  const sentMessages: string[] = [];
+  const editMessageCalls: string[] = [];
+  let replyCalled = false;
+  let replyText = "";
+
   const mockCtx = {
     message: { text: "Show CPU usage", message_id: 123 },
     from: { id: 123 },
     chat: { id: 456 },
-    reply: (text: string) => {
-      sentMessages.push(text);
-      return Promise.resolve();
+    reply: (text: string, _opts?: unknown) => {
+      replyCalled = true;
+      replyText = text;
+      return Promise.resolve({ message_id: 789, chat: { id: 456 } } as any);
     },
     api: {
       sendChatAction: () => Promise.resolve(),
+      editMessageText: (_chatId: number, _messageId: number, text: string) => {
+        editMessageCalls.push(text);
+        return Promise.resolve();
+      },
     },
   };
 
   await handler(mockCtx as unknown as Parameters<typeof handler>[0]);
 
-  console.log("Sent messages:", sentMessages);
+  // Should have called reply once to create initial message
+  assert(replyCalled, "reply should be called to create initial message");
+  assert(replyText === "...", "initial reply should be '...'");
 
-  // Should have received 2 messages: tool call notification + response
-  assert(sentMessages.length === 2, `Expected 2 messages, got ${sentMessages.length}`);
+  // Should have called editMessageText multiple times as MessageBuilder updates
+  assert(editMessageCalls.length > 0, "editMessageText should be called at least once");
 
-  const [toolMessage, responseMessage] = sentMessages;
+  const finalMessage = editMessageCalls[editMessageCalls.length - 1];
 
-  // Verify tool message formatting
-  assert(
-    toolMessage.includes('<blockquote><pre><code class="language-bash">'),
-    "Should contain code block",
-  );
-  assert(
-    toolMessage.includes("# Build CPU usage graph for top processes"),
-    "Should contain reason with # prefix",
-  );
-  assert(toolMessage.includes("&gt;"), "Should contain escaped > character");
-  assert(toolMessage.includes("bars=int($2*10)"), "Should contain the awk command");
-  assert(toolMessage.includes("printf &quot;#&quot;"), "Should contain escaped printf statement");
+  // Verify thoughts are included
+  assert(finalMessage.includes("Analyzing CPU usage request"), "Should contain thoughts");
+
+  // Verify tool call formatting
+  assert(finalMessage.includes("# Build CPU usage graph for top processes"), "Should contain reason with # prefix");
+  assert(finalMessage.includes("&gt;"), "Should contain escaped > character");
+  assert(finalMessage.includes("bars=int($2*10)"), "Should contain the awk command");
 
   // Verify that HTML entities are properly escaped in the command part
-  const commandPart = toolMessage.split("&gt; ")[1].split("</code>")[0];
-  assert(
-    commandPart.includes("printf &quot;%-15s | &quot;"),
-    "Should contain escaped awk printf with quotes",
-  );
+  const commandPart = finalMessage.split("&gt; ")[1]?.split("\n")[0];
+  assert(commandPart, "Should contain command part");
+  assert(commandPart.includes("printf &quot;%-15s | &quot;"), "Should contain escaped awk printf with quotes");
   assert(commandPart.includes("i&lt;bars"), "Should contain escaped < in command");
-  assert(!commandPart.includes("&amp;lt;"), "Should not double-escape < in command");
-  assert(!commandPart.includes("&amp;gt;"), "Should not double-escape > in command");
 
-  // Verify response message
-  assert(responseMessage.includes("Command executed successfully"), "Should contain response text");
-  assert(responseMessage.includes("<i>0.0100$</i>"), "Should contain cost");
+  // Verify final response and cost
+  assert(finalMessage.includes("Command executed successfully"), "Should contain response text");
+  assert(finalMessage.includes("<i>0.0100$</i>"), "Should contain cost");
+});
+
+Deno.test("text message handler: handles errors properly", async () => {
+  // Mock agent that throws an error
+  const mockAgentError = {
+    processUserQuery: () => {
+      throw new Error("Test error occurred");
+    },
+  } as unknown as MainAgent;
+
+  const handler = createTextMessageHandler(mockAgentError, mockConfig);
+
+  const editMessageCalls: string[] = [];
+  let replyCalled = false;
+
+  const mockCtx = {
+    message: { text: "Test query", message_id: 123 },
+    from: { id: 123 },
+    chat: { id: 456 },
+    reply: (_text: string, _opts?: unknown) => {
+      replyCalled = true;
+      return Promise.resolve({ message_id: 789, chat: { id: 456 } } as any);
+    },
+    api: {
+      sendChatAction: () => Promise.resolve(),
+      editMessageText: (_chatId: number, _messageId: number, text: string) => {
+        editMessageCalls.push(text);
+        return Promise.resolve();
+      },
+    },
+  };
+
+  await handler(mockCtx as unknown as Parameters<typeof handler>[0]);
+
+  // Should have called reply once to create initial message
+  assert(replyCalled, "reply should be called to create initial message");
+
+  // Should have called editMessageText to show error
+  assert(editMessageCalls.length > 0, "editMessageText should be called for error");
+
+  const finalMessage = editMessageCalls[editMessageCalls.length - 1];
+
+  // Verify error is included
+  assert(finalMessage.includes("<b>Error:</b>"), "Should contain error prefix");
+  assert(finalMessage.includes("Test error occurred"), "Should contain error message");
+});
+
+Deno.test("text message handler: processes normal queries correctly", async () => {
+  // Mock agent with normal response
+  const mockAgentNormal = {
+    processUserQuery: ({ onThoughts }: { onThoughts?: (thoughts: string) => Promise<void> }) => {
+      if (onThoughts) {
+        onThoughts("Processing your request");
+      }
+      return Promise.resolve({ text: "Hello, this is a normal response", cost: 0.005 });
+    },
+  } as unknown as MainAgent;
+
+  const handler = createTextMessageHandler(mockAgentNormal, mockConfig);
+
+  const editMessageCalls: string[] = [];
+  let replyCalled = false;
+
+  const mockCtx = {
+    message: { text: "Hello bot", message_id: 123 },
+    from: { id: 123 },
+    chat: { id: 456 },
+    reply: (_text: string, _opts?: unknown) => {
+      replyCalled = true;
+      return Promise.resolve({ message_id: 789, chat: { id: 456 } } as any);
+    },
+    api: {
+      sendChatAction: () => Promise.resolve(),
+      editMessageText: (_chatId: number, _messageId: number, text: string) => {
+        editMessageCalls.push(text);
+        return Promise.resolve();
+      },
+    },
+  };
+
+  await handler(mockCtx as unknown as Parameters<typeof handler>[0]);
+
+  // Should have called reply once to create initial message
+  assert(replyCalled, "reply should be called to create initial message");
+
+  // Should have called editMessageText at least once
+  assert(editMessageCalls.length >= 1, "editMessageText should be called at least once");
+
+  const finalMessage = editMessageCalls[editMessageCalls.length - 1];
+
+  // Verify thoughts are included
+  assert(finalMessage.includes("Processing your request"), "Should contain thoughts");
+
+  // Verify final response and cost
+  assert(finalMessage.includes("Hello, this is a normal response"), "Should contain response text");
+  assert(finalMessage.includes("<i>0.0050$</i>"), "Should contain cost");
 });
 
 Deno.test("escapeHtml: handles special characters in commands", () => {
