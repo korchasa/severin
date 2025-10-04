@@ -6,6 +6,8 @@
 import { assert } from "@std/assert";
 import { createMessageBuilder } from "./message-builder.ts";
 import type { ToolSet, TypedToolCall, TypedToolResult } from "ai";
+import type { Context } from "grammy";
+import type { Message } from "grammy/types";
 
 Deno.test("message builder: builds thoughts correctly", () => {
   const builder = createMessageBuilder();
@@ -15,16 +17,18 @@ Deno.test("message builder: builds thoughts correctly", () => {
   const mockCtx = {
     api: {
       editMessageText: (_chatId: number, _messageId: number, text: string) => {
-        assert(text.includes("Analyzing user request for system information"), "Should contain thoughts");
-        assert(text.includes("<blockquote expandable>"), "Should have expandable blockquote");
+        assert(
+          text.includes("Analyzing user request for system information"),
+          "Should contain thoughts",
+        );
         return Promise.resolve();
       },
     },
   };
 
-  const mockMessage = { chat: { id: 123 }, message_id: 456 } as any;
+  const mockMessage = { chat: { id: 123 }, message_id: 456 } as Message.TextMessage;
 
-  builder.updateMessage(mockCtx as any, mockMessage);
+  builder.updateMessage(mockCtx as unknown as Context, mockMessage);
 });
 
 Deno.test("message builder: builds terminal tool calls correctly", () => {
@@ -47,15 +51,14 @@ Deno.test("message builder: builds terminal tool calls correctly", () => {
       editMessageText: (_chatId: number, _messageId: number, text: string) => {
         assert(text.includes("# List directory contents"), "Should contain reason with # prefix");
         assert(text.includes("&gt; ls -la"), "Should contain escaped command");
-        assert(text.includes("<blockquote expandable>"), "Should have expandable blockquote wrapper");
         return Promise.resolve();
       },
     },
   };
 
-  const mockMessage = { chat: { id: 123 }, message_id: 456 } as any;
+  const mockMessage = { chat: { id: 123 }, message_id: 456 } as Message.TextMessage;
 
-  builder.updateMessage(mockCtx as any, mockMessage);
+  builder.updateMessage(mockCtx as unknown as Context, mockMessage);
 });
 
 Deno.test("message builder: builds generic tool calls correctly", () => {
@@ -77,15 +80,14 @@ Deno.test("message builder: builds generic tool calls correctly", () => {
       editMessageText: (_chatId: number, _messageId: number, text: string) => {
         assert(text.includes("facts:"), "Should contain tool name");
         assert(text.includes('{"query":"system info"}'), "Should contain input JSON");
-        assert(text.includes("<blockquote expandable>"), "Should have expandable blockquote wrapper");
         return Promise.resolve();
       },
     },
   };
 
-  const mockMessage = { chat: { id: 123 }, message_id: 456 } as any;
+  const mockMessage = { chat: { id: 123 }, message_id: 456 } as Message.TextMessage;
 
-  builder.updateMessage(mockCtx as any, mockMessage);
+  builder.updateMessage(mockCtx as unknown as Context, mockMessage);
 });
 
 Deno.test("message builder: builds final text correctly", () => {
@@ -103,9 +105,9 @@ Deno.test("message builder: builds final text correctly", () => {
     },
   };
 
-  const mockMessage = { chat: { id: 123 }, message_id: 456 } as any;
+  const mockMessage = { chat: { id: 123 }, message_id: 456 } as Message.TextMessage;
 
-  builder.updateMessage(mockCtx as any, mockMessage);
+  builder.updateMessage(mockCtx as unknown as Context, mockMessage);
 });
 
 Deno.test("message builder: builds error messages correctly", () => {
@@ -123,9 +125,9 @@ Deno.test("message builder: builds error messages correctly", () => {
     },
   };
 
-  const mockMessage = { chat: { id: 123 }, message_id: 456 } as any;
+  const mockMessage = { chat: { id: 123 }, message_id: 456 } as Message.TextMessage;
 
-  builder.updateMessage(mockCtx as any, mockMessage);
+  builder.updateMessage(mockCtx as unknown as Context, mockMessage);
 });
 
 Deno.test("message builder: combines all parts correctly", () => {
@@ -152,24 +154,12 @@ Deno.test("message builder: combines all parts correctly", () => {
   const mockCtx = {
     api: {
       editMessageText: (_chatId: number, _messageId: number, text: string) => {
-        // Check that all parts are present in the correct order
-        const lines = text.trim().split("\n");
-
-        // Should start with blockquote expandable
-        assert(lines[0].includes("<blockquote expandable>"), "Should start with expandable blockquote");
-
         // Should contain thoughts
         assert(text.includes("Processing user query"), "Should contain thoughts");
-
-        // Should contain tool call separator
-        assert(text.includes("---"), "Should contain separator");
 
         // Should contain tool call
         assert(text.includes("# Check running processes"), "Should contain tool reason");
         assert(text.includes("&gt; ps aux"), "Should contain tool command");
-
-        // Should close blockquote
-        assert(text.includes("</blockquote>"), "Should close blockquote");
 
         // Should contain final text
         assert(text.includes("Here are the running processes"), "Should contain final text");
@@ -182,9 +172,9 @@ Deno.test("message builder: combines all parts correctly", () => {
     },
   };
 
-  const mockMessage = { chat: { id: 123 }, message_id: 456 } as any;
+  const mockMessage = { chat: { id: 123 }, message_id: 456 } as Message.TextMessage;
 
-  builder.updateMessage(mockCtx as any, mockMessage);
+  builder.updateMessage(mockCtx as unknown as Context, mockMessage);
 });
 
 Deno.test("message builder: handles multiple tool calls", () => {
@@ -225,9 +215,9 @@ Deno.test("message builder: handles multiple tool calls", () => {
     },
   };
 
-  const mockMessage = { chat: { id: 123 }, message_id: 456 } as any;
+  const mockMessage = { chat: { id: 123 }, message_id: 456 } as Message.TextMessage;
 
-  builder.updateMessage(mockCtx as any, mockMessage);
+  builder.updateMessage(mockCtx as unknown as Context, mockMessage);
 });
 
 Deno.test("message builder: handles tool results (no-op)", () => {
@@ -249,14 +239,12 @@ Deno.test("message builder: handles tool results (no-op)", () => {
       editMessageText: (_chatId: number, _messageId: number, text: string) => {
         // Since addToolResult is no-op, tool results should not appear in message
         assert(!text.includes("Command output here"), "Should not contain tool output");
-        // But should still have the blockquote structure
-        assert(text.includes("<blockquote expandable>"), "Should have expandable blockquote wrapper");
         return Promise.resolve();
       },
     },
   };
 
-  const mockMessage = { chat: { id: 123 }, message_id: 456 } as any;
+  const mockMessage = { chat: { id: 123 }, message_id: 456 } as Message.TextMessage;
 
-  builder.updateMessage(mockCtx as any, mockMessage);
+  builder.updateMessage(mockCtx as unknown as Context, mockMessage);
 });

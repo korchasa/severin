@@ -49,7 +49,7 @@ export function createTextMessageHandler(
     });
 
     // Send typing action to show the bot is processing
-    const message = await ctx.reply("...", { parse_mode: "HTML" });
+    const message = await ctx.reply("⏳...", { parse_mode: "HTML" });
     const correlationId = message.message_id.toString();
     const messageBuilder = createMessageBuilder();
     try {

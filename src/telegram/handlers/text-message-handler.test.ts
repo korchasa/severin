@@ -9,6 +9,7 @@ import type { beforeCallHandler, MainAgent } from "../../agent/main-agent.ts";
 import type { Config } from "../../config/types.ts";
 import type { ToolSet, TypedToolCall, TypedToolResult } from "ai";
 import { escapeHtml } from "../telegram-format.ts";
+import type { Message } from "grammy/types";
 
 // Mock dependencies
 const mockAgent = {
@@ -115,7 +116,7 @@ Deno.test("text message handler: does not update message for empty LLM responses
     chat: { id: 456 },
     reply: (_text: string, _opts?: unknown) => {
       replyCalled = true;
-      return Promise.resolve({ message_id: 456 } as any);
+      return Promise.resolve({ message_id: 456 } as Message.TextMessage);
     },
     api: {
       sendChatAction: () => Promise.resolve(),
@@ -191,7 +192,7 @@ Deno.test("text message handler: properly formats terminal command notifications
     reply: (text: string, _opts?: unknown) => {
       replyCalled = true;
       replyText = text;
-      return Promise.resolve({ message_id: 789, chat: { id: 456 } } as any);
+      return Promise.resolve({ message_id: 789, chat: { id: 456 } } as Message.TextMessage);
     },
     api: {
       sendChatAction: () => Promise.resolve(),
@@ -206,7 +207,7 @@ Deno.test("text message handler: properly formats terminal command notifications
 
   // Should have called reply once to create initial message
   assert(replyCalled, "reply should be called to create initial message");
-  assert(replyText === "...", "initial reply should be '...'");
+  assert(replyText === "⏳...", "initial reply should be '...'");
 
   // Should have called editMessageText multiple times as MessageBuilder updates
   assert(editMessageCalls.length > 0, "editMessageText should be called at least once");
@@ -217,14 +218,20 @@ Deno.test("text message handler: properly formats terminal command notifications
   assert(finalMessage.includes("Analyzing CPU usage request"), "Should contain thoughts");
 
   // Verify tool call formatting
-  assert(finalMessage.includes("# Build CPU usage graph for top processes"), "Should contain reason with # prefix");
+  assert(
+    finalMessage.includes("# Build CPU usage graph for top processes"),
+    "Should contain reason with # prefix",
+  );
   assert(finalMessage.includes("&gt;"), "Should contain escaped > character");
   assert(finalMessage.includes("bars=int($2*10)"), "Should contain the awk command");
 
   // Verify that HTML entities are properly escaped in the command part
   const commandPart = finalMessage.split("&gt; ")[1]?.split("\n")[0];
   assert(commandPart, "Should contain command part");
-  assert(commandPart.includes("printf &quot;%-15s | &quot;"), "Should contain escaped awk printf with quotes");
+  assert(
+    commandPart.includes("printf &quot;%-15s | &quot;"),
+    "Should contain escaped awk printf with quotes",
+  );
   assert(commandPart.includes("i&lt;bars"), "Should contain escaped < in command");
 
   // Verify final response and cost
@@ -251,7 +258,7 @@ Deno.test("text message handler: handles errors properly", async () => {
     chat: { id: 456 },
     reply: (_text: string, _opts?: unknown) => {
       replyCalled = true;
-      return Promise.resolve({ message_id: 789, chat: { id: 456 } } as any);
+      return Promise.resolve({ message_id: 789, chat: { id: 456 } } as Message.TextMessage);
     },
     api: {
       sendChatAction: () => Promise.resolve(),
@@ -299,7 +306,7 @@ Deno.test("text message handler: processes normal queries correctly", async () =
     chat: { id: 456 },
     reply: (_text: string, _opts?: unknown) => {
       replyCalled = true;
-      return Promise.resolve({ message_id: 789, chat: { id: 456 } } as any);
+      return Promise.resolve({ message_id: 789, chat: { id: 456 } } as Message.TextMessage);
     },
     api: {
       sendChatAction: () => Promise.resolve(),

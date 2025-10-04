@@ -15,9 +15,10 @@ interface MessageBuilder {
 export function createMessageBuilder(): MessageBuilder {
   let thoughtsHTML: string = "";
   const toolCallHTMLs: string[] = [];
-  let finalTextHTML: string = "";
+  let finalTextHTML: string = "...";
   let finalCost: number = 0;
   let errorHTML: string;
+  let lastUpdatedContent: string = "";
   const builder = {
     setThoughts: (thoughts: string) => {
       thoughtsHTML = html(thoughts);
@@ -52,21 +53,28 @@ export function createMessageBuilder(): MessageBuilder {
       errorHTML = html(error.message);
     },
     updateMessage: async (ctx: Context, telegramMessage: Message.TextMessage) => {
+      const newContent = `
+<blockquote>
+${thoughtsHTML}
+</blockquote>
+<blockquote><pre><code class="language-bash">
+${toolCallHTMLs.join("\n")}
+</code></pre></blockquote>
+${finalTextHTML}
+${errorHTML ? `<b>Error:</b> ${errorHTML}` : ""}
+${finalCost ? "<i>" + finalCost.toFixed(4) + "$</i>" : ""}
+`.trim();
+      if (newContent === lastUpdatedContent) {
+        return;
+      }
+      lastUpdatedContent = newContent;
       await ctx.api.editMessageText(
         telegramMessage.chat.id,
         telegramMessage.message_id,
-        `
-<blockquote expandable>
-${thoughtsHTML}
----
-${toolCallHTMLs.join("\n")}
-</blockquote>
-${finalTextHTML}
-${errorHTML ? `<b>Error:</b> ${errorHTML}` : ""}
-<i>${finalCost.toFixed(4)}$</i>
-`.trim(),
+        newContent,
+        { parse_mode: "HTML" },
       );
     },
-  };
+  } as MessageBuilder;
   return builder;
 }
