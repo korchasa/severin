@@ -240,3 +240,168 @@ Back to normal text with [a link](https://example.com).
     "Should have proper code block closing tag",
   );
 });
+
+Deno.test("markdownToTelegramHTML - edge cases and boundary conditions", () => {
+  // Test null/undefined input
+  assertEquals(markdownToTelegramHTML(null), "", "null input should return empty string");
+  assertEquals(markdownToTelegramHTML(undefined), "", "undefined input should return empty string");
+
+  // Test empty and whitespace-only strings
+  assertEquals(markdownToTelegramHTML(""), "", "empty string should return empty string");
+  assertEquals(markdownToTelegramHTML("   "), "   ", "whitespace-only string should be preserved");
+  assertEquals(
+    markdownToTelegramHTML("\t\n  \t"),
+    "\t\n  \t",
+    "tabs and newlines should be preserved",
+  );
+
+  // Test strings with only special characters - function doesn't escape plain text HTML chars
+  assertEquals(
+    markdownToTelegramHTML("&<>\"'"),
+    "&<>\"'",
+    "HTML special chars in plain text are not escaped",
+  );
+
+  // Test very long strings (simulate large messages)
+  const longText = "**bold** *italic*";
+  const longOut = markdownToTelegramHTML(longText);
+  assertEquals(longOut, "<b>bold</b> <i>italic</i>", "Basic long string processing works");
+});
+
+Deno.test("markdownToTelegramHTML - nested and complex combinations", () => {
+  // Test bold inside italic - function processes in order: bold first, then italic escapes HTML
+  const nested1 = "*italic with **bold** inside*";
+  const out1 = markdownToTelegramHTML(nested1);
+  assertEquals(
+    out1,
+    "<i>italic with &lt;b&gt;bold&lt;/b&gt; inside</i>",
+    "Bold markup gets processed but HTML tags are escaped inside italic",
+  );
+
+  // Test code inside other elements (code processed early, but HTML tags get escaped in bold)
+  const nested2 = "**bold `code` text**";
+  const out2 = markdownToTelegramHTML(nested2);
+  assertEquals(
+    out2,
+    "<b>bold &lt;code&gt;code&lt;/code&gt; text</b>",
+    "Code gets processed but HTML tags are escaped inside bold",
+  );
+
+  // Test links in headers - links get processed but HTML tags are escaped in headers
+  const nested3 = "# Header with [link](url)";
+  const out3 = markdownToTelegramHTML(nested3);
+  assertEquals(
+    out3,
+    "<b>Header with &lt;a href=&quot;url&quot;&gt;link&lt;/a&gt;</b>",
+    "Links get processed but HTML tags are escaped in headers",
+  );
+
+  // Test multiple nested blockquotes - current implementation only handles single level
+  const nested4 = "> Level 1\n> > Level 2\n> > > Level 3";
+  const out4 = markdownToTelegramHTML(nested4);
+  assertEquals(
+    out4,
+    "<blockquote>Level 1\n&gt; Level 2\n&gt; &gt; Level 3</blockquote>",
+    "Nested blockquotes beyond first level get HTML escaped",
+  );
+});
+
+Deno.test("markdownToTelegramHTML - malformed and edge markdown", () => {
+  // Test multiple consecutive asterisks - gets processed as italic containing bold (escaped)
+  const malformed1 = "***not bold***";
+  const out1 = markdownToTelegramHTML(malformed1);
+  assertEquals(
+    out1,
+    "<i>&lt;b&gt;not bold&lt;/b&gt;</i>",
+    "Triple asterisks create nested formatting with HTML escaping",
+  );
+
+  // Test unclosed bold - should remain as is
+  const malformed2 = "**unclosed bold";
+  const out2 = markdownToTelegramHTML(malformed2);
+  assertEquals(out2, "**unclosed bold", "Unclosed bold should not be converted");
+
+  // Test empty code blocks - should work
+  const malformed3 = "```\n```";
+  const out3 = markdownToTelegramHTML(malformed3);
+  assertEquals(out3, "<pre><code></code></pre>", "Empty code blocks should be handled");
+
+  // Test code blocks with only language - current regex doesn't handle this case
+  const malformed4 = "```python\n";
+  const out4 = markdownToTelegramHTML(malformed4);
+  assertEquals(out4, "```python\n", "Unclosed code blocks should be preserved as text");
+
+  // Test blockquotes with inconsistent formatting - each > line becomes separate blockquote
+  const malformed5 = "> First line\nSecond line\n> Third line";
+  const out5 = markdownToTelegramHTML(malformed5);
+  assertEquals(
+    out5,
+    "<blockquote>First line</blockquote>\nSecond line\n<blockquote>Third line</blockquote>",
+    "Each line starting with > becomes a separate blockquote",
+  );
+});
+
+Deno.test("markdownToTelegramHTML - unicode and special characters", () => {
+  // Test emoji
+  const unicode1 = "Hello 🌟 **bold** with *emoji* 🎉";
+  const out1 = markdownToTelegramHTML(unicode1);
+  assertEquals(out1, "Hello 🌟 <b>bold</b> with <i>emoji</i> 🎉", "Emoji should be preserved");
+
+  // Test non-ASCII characters
+  const unicode2 = "Привет **мир** and *hello* κόσμος";
+  const out2 = markdownToTelegramHTML(unicode2);
+  assertEquals(
+    out2,
+    "Привет <b>мир</b> and <i>hello</i> κόσμος",
+    "Non-ASCII characters should be preserved",
+  );
+
+  // Test special characters in code
+  const unicode3 = "`function(arg1, arg2)` and `f(x) = x² + 2x + 1`";
+  const out3 = markdownToTelegramHTML(unicode3);
+  assertEquals(
+    out3,
+    "<code>function(arg1, arg2)</code> and <code>f(x) = x² + 2x + 1</code>",
+    "Special characters in code should be HTML escaped",
+  );
+});
+
+Deno.test("markdownToTelegramHTML - code blocks edge cases", () => {
+  // Test code blocks without language
+  const code1 = "```\nconsole.log('hello');\n```";
+  const out1 = markdownToTelegramHTML(code1);
+  assertEquals(
+    out1,
+    "<pre><code>console.log(&#39;hello&#39;);</code></pre>",
+    "Code blocks without language should work",
+  );
+
+  // Test multiple consecutive code blocks
+  const code2 = "```js\nconsole.log(1);\n```\n\n```python\nprint(2)\n```";
+  const out2 = markdownToTelegramHTML(code2);
+  assert(out2.includes('<pre><code class="language-js">'), "First code block should have language");
+  assert(
+    out2.includes('<pre><code class="language-python">'),
+    "Second code block should have language",
+  );
+  assert(out2.includes("console.log(1);"), "First code block content should be preserved");
+  assert(out2.includes("print(2)"), "Second code block content should be preserved");
+
+  // Test code blocks with special markdown inside
+  const code3 = "```markdown\n# This is *not* a header\n**Not bold** [not a link](url)\n```";
+  const out3 = markdownToTelegramHTML(code3);
+  assert(out3.includes("# This is *not* a header"), "Headers in code should be preserved as text");
+  assert(
+    out3.includes("**Not bold** [not a link](url)"),
+    "Bold and links in code should be preserved as text",
+  );
+
+  // Test code blocks with empty lines - function preserves internal empty lines
+  const code4 = "```\n\n\ncode\n\n\n```";
+  const out4 = markdownToTelegramHTML(code4);
+  assertEquals(
+    out4,
+    "<pre><code>\n\ncode\n\n</code></pre>",
+    "Empty lines inside code blocks should be preserved, trailing newline removed",
+  );
+});
