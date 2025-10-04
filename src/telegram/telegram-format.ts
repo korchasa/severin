@@ -49,21 +49,27 @@ export function toPreCode(
 export function markdownToTelegramHTML(input: string | null | undefined): string {
   if (!input) return "";
 
-  // Process code blocks first to avoid corrupting content
   let text = input;
 
-  // 1) Extract blockquotes and set placeholders to avoid formatting their content
+  // === FIRST PASS: Extract all protected blocks into placeholders ===
+
+  // 1. Extract fenced code blocks
+  const codeStore: string[] = [];
+  text = text.replace(/```([a-zA-Z0-9_+\-]+)?\n([\s\S]*?)```/g, (_m, lang, code) => {
+    const trimmed = String(code).replace(/\n$/, "");
+    const html = toPreCode({ code: trimmed, language: lang });
+    const idx = codeStore.push(html) - 1;
+    return `__CODE${idx}__`;
+  });
+
+  // 2. Extract blockquotes
   const bqStore: string[] = [];
   text = text.replace(/(^> .*(?:\n> .*)*)/gm, (block) => {
     const idx = bqStore.push(block) - 1;
     return `__BQ${idx}__`;
   });
 
-  // Fenced code with optional language
-  text = text.replace(/```([a-zA-Z0-9_+\-]+)?\n([\s\S]*?)```/g, (_m, lang, code) => {
-    const trimmed = String(code).replace(/\n$/, "");
-    return toPreCode({ code: trimmed, language: lang });
-  });
+  // === SECOND PASS: Process Markdown on remaining text ===
 
   // Inline code
   text = text.replace(/`([^`]+)`/g, (_m, code) => `<code>${escapeHtml(code)}</code>`);
@@ -88,7 +94,23 @@ export function markdownToTelegramHTML(input: string | null | undefined): string
   text = replaceItalics(text, /(^|\W)\*([^*]+)\*(?=\W|$)/g);
   text = replaceItalics(text, /(^|\W)_([^_]+)_(?=\W|$)/g);
 
-  // 3) Restore blockquotes from placeholders without additional formatting
+  // Unclosed trailing underscore italic till EOL
+  text = text.replace(/(^|\W)_([^_\n]+)$/gm, (_m, pre, it) => `${pre}<i>${escapeHtml(it)}</i>`);
+
+  // === THIRD PASS: Restore all protected blocks ===
+
+  // 3. Restore fenced code blocks
+  if (codeStore.length > 0) {
+    text = text.replace(/__CODE(\d+)__/g, (_m, sidx) => {
+      const idx = parseInt(sidx, 10);
+      if (isNaN(idx) || idx < 0 || idx >= codeStore.length) {
+        return "";
+      }
+      return codeStore[idx];
+    });
+  }
+
+  // 4. Restore blockquotes
   if (bqStore.length > 0) {
     text = text.replace(/__BQ(\d+)__/g, (_m, sidx) => {
       const idx = parseInt(sidx, 10);
@@ -100,9 +122,6 @@ export function markdownToTelegramHTML(input: string | null | undefined): string
       return `<blockquote>${escapeHtml(lines.join("\n"))}</blockquote>`;
     });
   }
-
-  // Unclosed trailing underscore italic till EOL
-  text = text.replace(/(^|\W)_([^_\n]+)$/gm, (_m, pre, it) => `${pre}<i>${escapeHtml(it)}</i>`);
 
   return text;
 }
