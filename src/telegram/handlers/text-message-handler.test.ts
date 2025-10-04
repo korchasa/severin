@@ -207,7 +207,7 @@ Deno.test("text message handler: properly formats terminal command notifications
 
   // Should have called reply once to create initial message
   assert(replyCalled, "reply should be called to create initial message");
-  assert(replyText === "⏳...", "initial reply should be '...'");
+  assert(replyText === "...", "initial reply should be '...'");
 
   // Should have called editMessageText multiple times as MessageBuilder updates
   assert(editMessageCalls.length > 0, "editMessageText should be called at least once");
