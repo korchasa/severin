@@ -20,56 +20,75 @@ Deno.test("toPreCode - wraps code with optional language", () => {
   assertEquals(out2, '<pre><code class="language-python">print(1)</code></pre>');
 });
 
-Deno.test("markdownToTelegramHTML - plain text", () => {
-  const input = "Hello world!";
-  const out = markdownToTelegramHTML(input);
-  assertEquals(out, "Hello world!");
-});
+Deno.test("markdownToTelegramHTML - basic markdown transformations", () => {
+  // Test plain text (should remain unchanged)
+  const plainInput = "Hello world!";
+  const plainOut = markdownToTelegramHTML(plainInput);
+  assertEquals(plainOut, "Hello world!", "Plain text should remain unchanged");
 
-Deno.test("markdownToTelegramHTML - bold and italic", () => {
-  const input = "**bold** and *italic* _more_";
-  const out = markdownToTelegramHTML(input);
-  assertEquals(out, "<b>bold</b> and <i>italic</i> <i>more</i>");
-});
-
-Deno.test("markdownToTelegramHTML - inline code", () => {
-  const input = "Text with `code` inline";
-  const out = markdownToTelegramHTML(input);
-  assertEquals(out, "Text with <code>code</code> inline");
-});
-
-Deno.test("markdownToTelegramHTML - code block fenced", () => {
-  const input = "```\nline1\nline2\n```";
-  const out = markdownToTelegramHTML(input);
-  assertEquals(out, "<pre><code>line1\nline2</code></pre>");
-});
-
-Deno.test("markdownToTelegramHTML - link", () => {
-  const input = "See [example](https://example.com?q=a_b#c) please";
-  const out = markdownToTelegramHTML(input);
-  assertEquals(out, 'See <a href="https://example.com?q=a_b#c">example</a> please');
-});
-
-Deno.test("markdownToTelegramHTML - blockquote", () => {
-  const input = "> quoted _text_\n> second";
-  const out = markdownToTelegramHTML(input);
-  assertEquals(out, "<blockquote>quoted _text_\nsecond</blockquote>");
-});
-
-Deno.test("markdownToTelegramHTML - headers to bold", () => {
-  const input =
-    "# Header 1\n## Header 2\n### Header 3\n#### Header 4\n##### Header 5\n###### Header 6";
-  const out = markdownToTelegramHTML(input);
+  // Test bold and italic
+  const emphasisInput = "**bold** and *italic* _more_";
+  const emphasisOut = markdownToTelegramHTML(emphasisInput);
   assertEquals(
-    out,
-    "<b>Header 1</b>\n<b>Header 2</b>\n<b>Header 3</b>\n<b>Header 4</b>\n<b>Header 5</b>\n<b>Header 6</b>",
+    emphasisOut,
+    "<b>bold</b> and <i>italic</i> <i>more</i>",
+    "Bold and italic should be converted to HTML",
   );
-});
 
-Deno.test("markdownToTelegramHTML - unclosed italic is converted", () => {
-  const input = "Text with _unclosed italic";
-  const out = markdownToTelegramHTML(input);
-  assertEquals(out, "Text with <i>unclosed italic</i>");
+  // Test inline code
+  const codeInput = "Text with `code` inline";
+  const codeOut = markdownToTelegramHTML(codeInput);
+  assertEquals(
+    codeOut,
+    "Text with <code>code</code> inline",
+    "Inline code should be wrapped in <code> tags",
+  );
+
+  // Test fenced code blocks
+  const fencedInput = "```\nline1\nline2\n```";
+  const fencedOut = markdownToTelegramHTML(fencedInput);
+  assertEquals(
+    fencedOut,
+    "<pre><code>line1\nline2</code></pre>",
+    "Fenced code blocks should be wrapped in <pre><code>",
+  );
+
+  // Test links
+  const linkInput = "See [example](https://example.com?q=a_b#c) please";
+  const linkOut = markdownToTelegramHTML(linkInput);
+  assertEquals(
+    linkOut,
+    'See <a href="https://example.com?q=a_b#c">example</a> please',
+    "Links should be converted to <a> tags",
+  );
+
+  // Test blockquotes
+  const quoteInput = "> quoted _text_\n> second";
+  const quoteOut = markdownToTelegramHTML(quoteInput);
+  assertEquals(
+    quoteOut,
+    "<blockquote>quoted _text_\nsecond</blockquote>",
+    "Blockquotes should be wrapped in <blockquote> tags",
+  );
+
+  // Test headers
+  const headerInput =
+    "# Header 1\n## Header 2\n### Header 3\n#### Header 4\n##### Header 5\n###### Header 6";
+  const headerOut = markdownToTelegramHTML(headerInput);
+  assertEquals(
+    headerOut,
+    "<b>Header 1</b>\n<b>Header 2</b>\n<b>Header 3</b>\n<b>Header 4</b>\n<b>Header 5</b>\n<b>Header 6</b>",
+    "All header levels should be converted to <b> tags",
+  );
+
+  // Test unclosed italic
+  const unclosedInput = "Text with _unclosed italic";
+  const unclosedOut = markdownToTelegramHTML(unclosedInput);
+  assertEquals(
+    unclosedOut,
+    "Text with <i>unclosed italic</i>",
+    "Unclosed italic should be properly closed",
+  );
 });
 
 Deno.test("markdownToTelegramHTML - code blocks preserve markdown inside", () => {
