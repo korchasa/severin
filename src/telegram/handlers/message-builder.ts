@@ -17,7 +17,7 @@ export function createMessageBuilder(): MessageBuilder {
   const toolCallHTMLs: string[] = [];
   let finalTextHTML: string = "...";
   let finalCost: number = 0;
-  let errorHTML: string;
+  let errorHTML: string = "";
   let lastUpdatedContent: string = "";
   const builder = {
     setThoughts: (thoughts: string) => {
