@@ -5,20 +5,23 @@
 
 import { assertEquals, assertExists } from "@std/assert";
 import { ContextBuilder } from "./builder.ts";
+import { SimpleHistoryCompactor } from "./compactor.ts";
 import { MockFactsStorage } from "../facts/mock.ts";
 import { createMockSystemInfo } from "../../system-info/mock.ts";
 import { ModelMessage } from "ai";
 
 function createContextBuilder(maxSymbols = 1000): ContextBuilder {
-  return new ContextBuilder(maxSymbols, createMockSystemInfo(), new MockFactsStorage());
+  const compactor = new SimpleHistoryCompactor(maxSymbols);
+  return new ContextBuilder(compactor, createMockSystemInfo(), new MockFactsStorage());
 }
 
 Deno.test("ContextBuilder: constructor initializes with correct parameters", () => {
   const maxSymbols = 500;
   const systemInfo = createMockSystemInfo();
   const factsStorage = new MockFactsStorage();
+  const compactor = new SimpleHistoryCompactor(maxSymbols);
 
-  const builder = new ContextBuilder(maxSymbols, systemInfo, factsStorage);
+  const builder = new ContextBuilder(compactor, systemInfo, factsStorage);
 
   // Verify constructor parameters are stored
   assertExists(builder);
@@ -258,9 +261,10 @@ Deno.test("ContextBuilder: appendStepMessages deduplicates messages by content",
   assertEquals(hasResultMessage, true, "Should contain the result message");
 });
 
-Deno.test("ContextBuilder: integration with ContextCompactor ensures tool-call/tool-result consistency", async () => {
+Deno.test("ContextBuilder: integration with HistoryCompactor ensures tool-call/tool-result consistency", async () => {
   const maxSymbols = 300; // Small limit to force trimming
-  const builder = new ContextBuilder(maxSymbols, createMockSystemInfo(), new MockFactsStorage());
+  const compactor = new SimpleHistoryCompactor(maxSymbols);
+  const builder = new ContextBuilder(compactor, createMockSystemInfo(), new MockFactsStorage());
 
   // Add many messages to exceed limit
   for (let i = 0; i < 10; i++) {
@@ -321,9 +325,9 @@ Deno.test("ContextBuilder: integration with ContextCompactor ensures tool-call/t
 
   // Verify that total symbol count is within limit
   let totalSymbols = 0;
-  const compactor = new (await import("./compactor.ts")).SimpleContextCompactor(maxSymbols);
+  const verifyCompactor = new SimpleHistoryCompactor(maxSymbols);
   for (const msg of messages) {
-    totalSymbols += compactor.estimateSymbols(msg);
+    totalSymbols += verifyCompactor.estimateSymbols(msg);
   }
   assertEquals(
     totalSymbols <= maxSymbols,
@@ -334,7 +338,8 @@ Deno.test("ContextBuilder: integration with ContextCompactor ensures tool-call/t
 
 Deno.test("ContextBuilder: handles orphaned tool-call removal during context trimming", async () => {
   const maxSymbols = 200; // Small limit
-  const builder = new ContextBuilder(maxSymbols, createMockSystemInfo(), new MockFactsStorage());
+  const compactor = new SimpleHistoryCompactor(maxSymbols);
+  const builder = new ContextBuilder(compactor, createMockSystemInfo(), new MockFactsStorage());
 
   // Add messages to consume symbol budget
   for (let i = 0; i < 5; i++) {
@@ -374,7 +379,8 @@ Deno.test("ContextBuilder: handles orphaned tool-call removal during context tri
 });
 
 Deno.test("ContextBuilder: preserves system prompt templating with server info and facts", async () => {
-  const builder = new ContextBuilder(1000, createMockSystemInfo(), new MockFactsStorage());
+  const compactor = new SimpleHistoryCompactor(1000);
+  const builder = new ContextBuilder(compactor, createMockSystemInfo(), new MockFactsStorage());
 
   const template =
     "System: {{SERVER_INFO}}\nFacts: {{FACTS}}\nInstructions: You are a helpful assistant.";
@@ -395,4 +401,35 @@ Deno.test("ContextBuilder: preserves system prompt templating with server info a
     true,
     "System prompt should preserve instructions",
   );
+});
+
+Deno.test("ContextBuilder: tracks accumulated token usage", async () => {
+  const compactor = new SimpleHistoryCompactor(1000);
+  const builder = new ContextBuilder(compactor, createMockSystemInfo(), new MockFactsStorage());
+
+  assertEquals(builder.getAccumulatedTokens(), 0, "Initial token count should be 0");
+  assertEquals(builder.getMessageCount(), 0, "Initial message count should be 0");
+
+  // Add some messages
+  builder.append({ role: "user", content: "Hello" });
+  builder.append({ role: "assistant", content: "Hi there" });
+
+  assertEquals(builder.getMessageCount(), 2, "Should have 2 messages");
+  assertEquals(builder.getAccumulatedTokens(), 0, "Token count should still be 0 until we add usage");
+
+  // Simulate LLM response with token usage
+  builder.addTokenUsage(10, 20);
+
+  assertEquals(builder.getAccumulatedTokens(), 30, "Should accumulate input and output tokens");
+
+  // Add more token usage
+  builder.addTokenUsage(5, 15);
+
+  assertEquals(builder.getAccumulatedTokens(), 50, "Should accumulate additional tokens");
+
+  // Reset clears both messages and tokens
+  builder.reset();
+
+  assertEquals(builder.getMessageCount(), 0, "Message count should be 0 after reset");
+  assertEquals(builder.getAccumulatedTokens(), 0, "Token count should be 0 after reset");
 });

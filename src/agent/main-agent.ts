@@ -66,6 +66,8 @@ export interface MainAgentParams {
   terminalTool: Tool;
   costCalculator: CostCalculator;
   dataDir: string;
+  /** Maximum symbols in history (for context logging) */
+  maxHistorySymbols: number;
   /** Maximum number of recent messages to include in model context (default: 200) */
   maxHistoryMessages?: number;
   /** Maximum number of agent steps per user query (default: 10) */
@@ -87,6 +89,7 @@ export class MainAgent implements MainAgentAPI {
   private readonly terminalTool: Tool;
   private readonly costCalculator: CostCalculator;
   private readonly maxSteps: number;
+  private readonly maxHistorySymbols: number;
   constructor(params: MainAgentParams) {
     this.llmModel = params.llmModel;
     this.llmTemperature = params.llmTemperature;
@@ -95,6 +98,7 @@ export class MainAgent implements MainAgentAPI {
     this.terminalTool = params.terminalTool;
     this.costCalculator = params.costCalculator;
     this.maxSteps = params.maxSteps ?? 10;
+    this.maxHistorySymbols = params.maxHistorySymbols;
   }
 
   /**
@@ -155,13 +159,22 @@ export class MainAgent implements MainAgentAPI {
     });
 
     try {
-      // Stream agent response
+      // Log context information with token usage
+      const currentTokens = this.contextBuilder.getAccumulatedTokens();
+      const messageCount = this.contextBuilder.getMessageCount();
+      const percentUsed = this.maxHistorySymbols > 0
+        ? Math.round((currentTokens / this.maxHistorySymbols) * 100)
+        : 0;
+
       log({
         mod: "agent",
         level: "info",
         event: "agent_context",
         correlationId,
-        messages,
+        messageCount,
+        currentTokens,
+        maxTokens: this.maxHistorySymbols,
+        percentUsed,
       });
       const { fullStream, text, totalUsage } = agent.stream({ messages: messages });
 
@@ -329,7 +342,11 @@ export class MainAgent implements MainAgentAPI {
       // Deno.writeTextFileSync("messages.json", JSON.stringify(await stream.response, null, 2));
 
       const lastStepText = await text;
-      const cost = this.costCalculator.calcCosts(await totalUsage);
+      const usage = await totalUsage;
+      const cost = this.costCalculator.calcCosts(usage);
+
+      // Track token usage in context
+      this.contextBuilder.addTokenUsage(usage.inputTokens ?? 0, usage.outputTokens ?? 0);
 
       log({
         mod: "agent",
