@@ -7,3 +7,5 @@ server-ai.*
 .vscode
 node_modules
 vendor
+reference
+.idea

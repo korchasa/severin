@@ -6,6 +6,24 @@ import { env, envOptional, parseOwnerIds } from "./utils.ts";
 export type { Config };
 
 /**
+ * Gets the summary token threshold from environment
+ * Parses AGENT_HISTORY_SUMMARY_TOKEN_THRESHOLD and returns undefined if not set
+ */
+function getSummaryTokenThreshold(): number | undefined {
+  const value = Deno.env.get("AGENT_HISTORY_SUMMARY_TOKEN_THRESHOLD");
+  if (value === undefined) {
+    return undefined;
+  }
+  const numValue = Number(value);
+  if (isNaN(numValue)) {
+    throw new Error(
+      `Environment variable AGENT_HISTORY_SUMMARY_TOKEN_THRESHOLD must be a valid number, got: ${value}`,
+    );
+  }
+  return numValue;
+}
+
+/**
  * Creates default configuration instance using environment variables
  * This function is called by the loader to build the configuration
  * @param systemInfo - Optional system information to include in system prompt
@@ -21,6 +39,9 @@ export function createDefaultConfig(systemInfo?: string): Config {
       history: {
         // Maximum total symbols to keep in conversation history
         maxSymbols: env("AGENT_MEMORY_MAX_SYMBOLS", 20000),
+        // Token threshold for triggering LLM-based summarization (optional, undefined disables summarization)
+        // Example: AGENT_HISTORY_SUMMARY_TOKEN_THRESHOLD=50000 (recommended 30000-100000)
+        summaryTokenThreshold: getSummaryTokenThreshold(),
       },
       // Terminal execution settings
       terminal: {
