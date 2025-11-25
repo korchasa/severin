@@ -556,7 +556,7 @@ Deno.test("message builder: closes and reopens tags when splitting", async () =>
   const builder = createMessageBuilder();
 
   // Create content with nested tags that will be split
-  const longContent = "<b>Bold text " + "A".repeat(4070) + " more bold</b>";
+  const longContent = "**Bold text " + "A".repeat(4070) + " more bold**";
   builder.addFinalText(longContent, 0.01);
 
   const receivedMessages: string[] = [];
@@ -600,7 +600,7 @@ Deno.test("message builder: handles multiple nested tags when splitting", async 
   const builder = createMessageBuilder();
 
   // Create content with multiple nested tags
-  const longContent = "<b><i>Bold italic " + "X".repeat(4060) + " continues</i></b>";
+  const longContent = "***Bold italic " + "X".repeat(4060) + " continues***";
   builder.addFinalText(longContent, 0.01);
 
   const receivedMessages: string[] = [];

@@ -40,7 +40,8 @@
   - Authorizes updates; rejects non-owners safely.
   - Long polling only (no webhook).
   - Messages formatted using HTML markup for rich text display.
-  - Long responses automatically split into multiple messages respecting Telegram's 4096 character limit.
+  - Long responses automatically split into multiple messages respecting Telegram's 4096 character
+    limit.
 
 ### ✅ FR-2 Command Routing & Validation
 

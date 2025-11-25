@@ -49,60 +49,69 @@ export function toPreCode(
 export function markdownToTelegramHTML(input: string | null | undefined): string {
   if (!input) return "";
 
-  // Process code blocks first to avoid corrupting content
+  const placeholders: string[] = [];
+  const placeholder = (content: string) => {
+    const idx = placeholders.push(content) - 1;
+    return `__TG_PH_${idx}__`;
+  };
+
   let text = input;
 
-  // 1) Extract blockquotes and set placeholders to avoid formatting their content
-  const bqStore: string[] = [];
+  // 1) Extract blockquotes
   text = text.replace(/(^> .*(?:\n> .*)*)/gm, (block) => {
-    const idx = bqStore.push(block) - 1;
-    return `__BQ${idx}__`;
+    const lines = block.split(/\n/).map((l) => l.replace(/^>\s?/, ""));
+    return placeholder(`<blockquote>${escapeHtml(lines.join("\n"))}</blockquote>`);
   });
 
-  // Fenced code with optional language
+  // 2) Fenced code with optional language
   text = text.replace(/```([a-zA-Z0-9_+\-]+)?\n([\s\S]*?)```/g, (_m, lang, code) => {
     const trimmed = String(code).replace(/\n$/, "");
-    return toPreCode({ code: trimmed, language: lang });
+    return placeholder(toPreCode({ code: trimmed, language: lang }));
   });
 
-  // Inline code
-  text = text.replace(/`([^`]+)`/g, (_m, code) => `<code>${escapeHtml(code)}</code>`);
+  // 3) Inline code
+  text = text.replace(/`([^`]+)`/g, (_m, code) => placeholder(`<code>${escapeHtml(code)}</code>`));
 
-  // Links [text](url)
+  // 4) Links [text](url)
   text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, label, url) => {
     const safeUrl = escapeHtml(url);
     const safeLabel = escapeHtml(label);
-    return `<a href="${safeUrl}">${safeLabel}</a>`;
+    return placeholder(`<a href="${safeUrl}">${safeLabel}</a>`);
   });
 
-  // Headers at line start -> bold line
-  text = text.replace(/^#{1,6}\s+(.*)$/gm, (_m, hdr) => `<b>${escapeHtml(hdr)}</b>`);
+  // 5) Headers at line start -> bold line
+  text = text.replace(/^#{1,6}\s+(.*)$/gm, (_m, hdr) => placeholder(`<b>${escapeHtml(hdr)}</b>`));
 
-  // Bold **text**
-  text = text.replace(/\*\*([^*]+)\*\*/g, (_m, bold) => `<b>${escapeHtml(bold)}</b>`);
+  // 6) Bold **text**
+  text = text.replace(/\*\*([^*]+)\*\*/g, (_m, bold) => placeholder(`<b>${escapeHtml(bold)}</b>`));
 
-  // Italic *text* or _text_
+  // 7) Italic *text* or _text_
   function replaceItalics(text: string, pattern: RegExp): string {
-    return text.replace(pattern, (_m, pre, it) => `${pre}<i>${escapeHtml(it)}</i>`);
+    return text.replace(
+      pattern,
+      (_m, pre, it) => `${pre}${placeholder(`<i>${escapeHtml(it)}</i>`)}`,
+    );
   }
   text = replaceItalics(text, /(^|\W)\*([^*]+)\*(?=\W|$)/g);
   text = replaceItalics(text, /(^|\W)_([^_]+)_(?=\W|$)/g);
 
-  // 3) Restore blockquotes from placeholders without additional formatting
-  if (bqStore.length > 0) {
-    text = text.replace(/__BQ(\d+)__/g, (_m, sidx) => {
-      const idx = parseInt(sidx, 10);
-      if (isNaN(idx) || idx < 0 || idx >= bqStore.length) {
-        return "";
-      }
-      const block = bqStore[idx];
-      const lines = block.split(/\n/).map((l) => l.replace(/^>\s?/, ""));
-      return `<blockquote>${escapeHtml(lines.join("\n"))}</blockquote>`;
+  // Unclosed trailing underscore italic till EOL
+  text = text.replace(
+    /(^|\W)_([^_\n]+)$/gm,
+    (_m, pre, it) => `${pre}${placeholder(`<i>${escapeHtml(it)}</i>`)}`,
+  );
+
+  // 8) Escape the remaining text
+  text = escapeHtml(text);
+
+  // 9) Restore placeholders
+  // Loop until no placeholders remain to handle nesting
+  while (text.includes("__TG_PH_")) {
+    text = text.replace(/__TG_PH_(\d+)__/g, (_m, idxStr) => {
+      const idx = parseInt(idxStr, 10);
+      return placeholders[idx] || "";
     });
   }
-
-  // Unclosed trailing underscore italic till EOL
-  text = text.replace(/(^|\W)_([^_\n]+)$/gm, (_m, pre, it) => `${pre}<i>${escapeHtml(it)}</i>`);
 
   return text;
 }

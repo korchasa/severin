@@ -1,4 +1,5 @@
 import { DOMParser, Element, Node } from "deno-dom";
+import { escapeHtml } from "./telegram-format.ts";
 
 export class HtmlSplitter {
   private chunks: string[] = [];
@@ -47,6 +48,8 @@ export class HtmlSplitter {
 
   private processTextNode(node: Node) {
     let text = node.textContent || "";
+    // Escape text immediately because we are building HTML
+    text = escapeHtml(text);
 
     while (text.length > 0) {
       const closingTagsLength = this.calculateClosingTagsLength();

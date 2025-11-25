@@ -480,7 +480,8 @@ interface Check {
 ### 4.17. HTML Message Splitting
 
 - **Purpose:** Handle Telegram's 4096 character message limit by splitting long HTML content.
-- **Implementation:** `HtmlSplitter` class using `deno-dom` for HTML parsing and intelligent splitting.
+- **Implementation:** `HtmlSplitter` class using `deno-dom` for HTML parsing and intelligent
+  splitting.
 - **Behavior:**
   - Preserves HTML tag structure across message chunks.
   - Adds continuation markers between chunks.
@@ -773,7 +774,7 @@ sequenceDiagram
 
 | SRS FR/NFR                                     | How covered in SDS                                                                                                      |
 | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| FR-1 Telegram bot (long polling)               | Sections 4.1, 4.2, `grammy` choice; no webhook; HTML formatting (4.16) and message splitting (4.17)                   |
+| FR-1 Telegram bot (long polling)               | Sections 4.1, 4.2, `grammy` choice; no webhook; HTML formatting (4.16) and message splitting (4.17)                     |
 | FR-2 Routing & validation                      | 4.3 (command registry), `zod`, logs with id                                                                             |
 | FR-3 Terminal tool (LLM-only)                  | 4.11 (Terminal Tool, logging)                                                                                           |
 | FR-4 Periodic metrics scheduler                | 4.6 (jitter, singleflight), 5.2 (metrics collection & LLM analysis)                                                     |
@@ -881,7 +882,8 @@ src/
   integrated into system prompts.
 - Real-time notifications: tool call callbacks provide immediate user feedback during LLM execution.
 - Response debugging: agent response dumps saved to YAML files for analysis and monitoring.
-- HTML message splitting: long responses automatically split respecting Telegram's 4096 character limit while preserving HTML structure.
+- HTML message splitting: long responses automatically split respecting Telegram's 4096 character
+  limit while preserving HTML structure.
 
 ---
 
