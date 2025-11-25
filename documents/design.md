@@ -376,7 +376,7 @@ interface Check {
 - Response formats: natural text for conversations, structured decisions for monitoring.
 - **Text Formatting:** `markdownToTelegramHTML` converts Markdown to Telegram HTML format.
 
-### 4.10.5. Retry Mechanism
+### 4.11.5. Retry Mechanism
 
 - **Purpose:** Handle transient LLM API failures with exponential backoff and jitter
 - **Implementation:** `withRetry()` utility function with configurable options:
@@ -388,7 +388,7 @@ interface Check {
 - **Logging:** Structured logs for retry attempts with attempt number, delay, and error details
 - **Error Handling:** Final failure after all retries with comprehensive error logging
 
-### 4.11. LLM Tools
+### 4.12. LLM Tools
 
 - **Terminal Tool:**
   - Interface: `{ command: string, cwd?: string, reason: string }` →
@@ -417,7 +417,7 @@ interface Check {
 
 - **Registry:** Tools registered via Vercel AI SDK; accessible only through LLM agents.
 
-### 4.12. Facts Storage and Management
+### 4.13. Facts Storage and Management
 
 - **Purpose:** Persistent storage for important system facts that can be updated and referenced by
   the LLM for improved contextual awareness and knowledge management.
@@ -477,7 +477,19 @@ interface Check {
 - **Parse mode:** `HTML`.
 - **Safety:** HTML entities escaped centrally.
 
-### 4.17. LLM Cost Calculation
+### 4.17. HTML Message Splitting
+
+- **Purpose:** Handle Telegram's 4096 character message limit by splitting long HTML content.
+- **Implementation:** `HtmlSplitter` class using `deno-dom` for HTML parsing and intelligent splitting.
+- **Behavior:**
+  - Preserves HTML tag structure across message chunks.
+  - Adds continuation markers between chunks.
+  - Maintains proper opening/closing tag balance.
+  - Handles nested tags and attributes correctly.
+- **Integration:** `MessageBuilder.updateMessage()` automatically splits content exceeding limits.
+- **Fallback:** Single message for content within limits; multiple messages for oversized content.
+
+### 4.18. LLM Cost Calculation
 
 - **Purpose:** Calculate LLM usage costs in USD via `CostCalculator` interface based on token
   consumption and configured pricing.
@@ -494,7 +506,7 @@ interface Check {
 - **Usage:** Integrated into agent tasks for cost tracking and monitoring.
 - **Fallback:** No external dependencies; pure calculation based on configured prices.
 
-### 4.18. Real-time Tool Call Notifications
+### 4.19. Real-time Tool Call Notifications
 
 - **Purpose:** Provide immediate user feedback during LLM tool execution for enhanced transparency
   and user experience.
@@ -511,7 +523,7 @@ interface Check {
   - Callback functions: `onToolCallRequested` and `onToolCallFinished`.
   - Support for all tool types: terminal, add_fact, update_fact, delete_fact.
 
-### 4.19. Agent Response Debugging and Analysis
+### 4.20. Agent Response Debugging and Analysis
 
 - **Purpose:** Save detailed agent response information for debugging, analysis, and monitoring.
 - **Implementation:**
@@ -761,7 +773,7 @@ sequenceDiagram
 
 | SRS FR/NFR                                     | How covered in SDS                                                                                                      |
 | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| FR-1 Telegram bot (long polling)               | Sections 4.1, 4.2, `grammy` choice; no webhook; HTML formatting (4.16)                                                  |
+| FR-1 Telegram bot (long polling)               | Sections 4.1, 4.2, `grammy` choice; no webhook; HTML formatting (4.16) and message splitting (4.17)                   |
 | FR-2 Routing & validation                      | 4.3 (command registry), `zod`, logs with id                                                                             |
 | FR-3 Terminal tool (LLM-only)                  | 4.11 (Terminal Tool, logging)                                                                                           |
 | FR-4 Periodic metrics scheduler                | 4.6 (jitter, singleflight), 5.2 (metrics collection & LLM analysis)                                                     |
@@ -869,6 +881,7 @@ src/
   integrated into system prompts.
 - Real-time notifications: tool call callbacks provide immediate user feedback during LLM execution.
 - Response debugging: agent response dumps saved to YAML files for analysis and monitoring.
+- HTML message splitting: long responses automatically split respecting Telegram's 4096 character limit while preserving HTML structure.
 
 ---
 

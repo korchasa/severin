@@ -87,9 +87,13 @@ src/
 │   ├── middlewares.ts       # Telegram middleware and logging
 │   ├── telegram-format.ts   # Telegram HTML formatting utilities
 │   ├── telegram-format.test.ts
+│   ├── html-splitter.ts     # HTML content splitting for Telegram message limits
+│   ├── html-splitter.test.ts # HtmlSplitter unit tests
 │   ├── utils.ts             # Telegram utility functions for response analysis
 │   └── handlers/
 │       ├── command-reset-handler.ts    # History reset command handler
+│       ├── message-builder.test.ts     # MessageBuilder unit tests
+│       ├── message-builder.ts          # Telegram message building with HTML splitting support
 │       ├── text-message-handler.ts     # LLM-powered text message processing with real-time notifications
 │       └── text-message-handler.test.ts
 └── utils/
