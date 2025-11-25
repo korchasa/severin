@@ -107,6 +107,17 @@ export async function startAgent(): Promise<void> {
   // Create bot instance
   const bot = new Bot(config.telegram.botToken);
 
+  // Setup global error handler
+  bot.catch((err) => {
+    log({
+      mod: "tg",
+      event: "bot_error",
+      error: err.message,
+      stack: err.stack,
+      ctx_update: err.ctx?.update,
+    });
+  });
+
   // Setup middleware
   bot.use(createAuthMiddleware(config.telegram.ownerIds));
   bot.use(createLoggingMiddleware());

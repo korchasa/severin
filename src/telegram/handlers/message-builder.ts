@@ -51,20 +51,41 @@ export function createMessageBuilder(): MessageBuilder {
       finalCost = cost;
     },
     setError: (error: Error) => {
-      errorHTML = html(error.message);
+      errorHTML = escapeHtml(error.message);
     },
     updateMessage: async (ctx: Context, telegramMessage: Message.TextMessage) => {
-      const newContent = `
-<blockquote>
-${thoughtsHTML}
-</blockquote>
-<blockquote><pre><code class="language-bash">
-${toolCallHTMLs.join("\n")}
-</code></pre></blockquote>
-${finalTextHTML}
-${errorHTML ? `<b>Error:</b> ${errorHTML}` : ""}
-${finalCost ? "<i>" + finalCost.toFixed(4) + "$</i>" : ""}
-`.trim();
+      const parts: string[] = [];
+
+      // Add thoughts section if present
+      if (thoughtsHTML) {
+        parts.push(`<blockquote>\n${thoughtsHTML}\n</blockquote>`);
+      }
+
+      // Add tool calls section if present
+      if (toolCallHTMLs.length > 0) {
+        parts.push(
+          `<blockquote><pre><code class="language-bash">\n${
+            toolCallHTMLs.join("\n")
+          }\n</code></pre></blockquote>`,
+        );
+      }
+
+      // Add final text
+      if (finalTextHTML && finalTextHTML !== "...") {
+        parts.push(finalTextHTML);
+      }
+
+      // Add error if present
+      if (errorHTML) {
+        parts.push(`<b>Error:</b> ${errorHTML}`);
+      }
+
+      // Add cost if present
+      if (finalCost > 0) {
+        parts.push(`<i>${finalCost.toFixed(4)}$</i>`);
+      }
+
+      const newContent = parts.join("\n");
       if (newContent === lastUpdatedContent) {
         return;
       }

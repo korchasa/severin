@@ -776,7 +776,7 @@ sequenceDiagram
 | FR-14 Agent Facade Architecture                | 4.10 (Agent Facade), createAgent factory, ConversationHistory, LlmClient, PromptRenderer with SystemInfo integration    |
 | FR-15 Persistent Facts Storage                 | 4.12 (Facts Storage and Management), integrated in MainAgent system prompts                                             |
 | NFR Performance                                | 30s tool timeouts, output limits                                                                                        |
-| NFR Reliability                                | simple periodic checks, history trimming, LLM retry mechanism with exponential backoff                                 |
+| NFR Reliability                                | simple periodic checks, history trimming, LLM retry mechanism with exponential backoff                                  |
 | NFR Security                                   | 7 (owner access only, no secrets in logs)                                                                               |
 | Interfaces                                     | 4.10–4.11 (type contracts), Telegram Bot API                                                                            |
 | Acceptance (system-level)                      | Fully reflected in command mechanics, scheduler, history and tool                                                       |
