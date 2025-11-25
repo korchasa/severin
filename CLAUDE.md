@@ -1,7 +1,10 @@
 # Project Instructions
 
 # YOU MUST
-- PROJECT MODE: The project is currently in Proof-of-Concept mode. Prefer simplest working solutions. Production-only rules/features may be relaxed or deferred unless marked as PoC-required.
+
+- PROJECT MODE: The project is currently in Proof-of-Concept mode. Prefer simplest working
+  solutions. Production-only rules/features may be relaxed or deferred unless marked as
+  PoC-required.
 - STRICTLY FOLLOW YOUR ROLE.
 - ALWAYS FOLLOW API DESIGN GUIDELINES AND BEST PRACTICES.
 - YOU WILL BE REWARDED FOR FOLLOWING INSTRUCTIONS AND GOOD ANSWERS.
@@ -10,17 +13,22 @@
 - ALWAYS INDEPENDENTLY CHECK HYPOTHESES.
 - STRICTLY FOLLOW THE TEST DRIVEN DEVELOPMENT(TDD) PROCESS.
 - ALWAYS CHECK THE CHANGES MADE BY RUNNING THE APPROPRIATE TESTS OR SCRIPTS.
-- AFTER EACH TASK, CHECK THE PROJECT IN WORKING CONDITION: WITHOUT ERRORS, WARNINGS, AND PROBLEMS IN THE FORMATER AND LINTER OUTPUT.
-- CONSIDER THE SOFTWARE REQUIREMENTS SPECIFICATION(SRS) AS THE PRIMARY SOURCE OF TRUTH FOR THE PROJECT. IT ANSWERS THE QUESTIONS: WHAT ARE WE DOING AND WHY.
-- CONSIDER THE SOFTWARE DESIGN SPECIFICATION(SDS) AS A SOURCE OF PROJECT IMPLEMENTATION DETAILS. IT DEPENDS ON SOFTWARE REQUIREMENTS SPECIFICATION. IT ANSWERS THE QUESTION: HOW WE DO IT.
+- AFTER EACH TASK, CHECK THE PROJECT IN WORKING CONDITION: WITHOUT ERRORS, WARNINGS, AND PROBLEMS IN
+  THE FORMATER AND LINTER OUTPUT.
+- CONSIDER THE SOFTWARE REQUIREMENTS SPECIFICATION(SRS) AS THE PRIMARY SOURCE OF TRUTH FOR THE
+  PROJECT. IT ANSWERS THE QUESTIONS: WHAT ARE WE DOING AND WHY.
+- CONSIDER THE SOFTWARE DESIGN SPECIFICATION(SDS) AS A SOURCE OF PROJECT IMPLEMENTATION DETAILS. IT
+  DEPENDS ON SOFTWARE REQUIREMENTS SPECIFICATION. IT ANSWERS THE QUESTION: HOW WE DO IT.
 - ANSWER IN LANGUAGE OF THE USER QUERY.
 - USE ONLY `./run` COMMAND TO RUN THE PROJECT COMMANDS.
 - IF YOU ENCOUNTER A LINTING RULE, WRITE IT IN SHORT FORM IN `.cursor/rules/code-style.mdc`.
 - WRITE ALL DOCUMENTATION IN INFORMATIONAL STYLE.
-- PERIODICALLY UPDATE THE WHITEBOARD FILE (`./documents/whiteboard.md`) BY RECORDING YOUR DETAILED PLAN, MARKING OFF COMPLETED STEPS, AND PRESERVING PROGRESS. CLEAN UP BEFORE NEW SESSION.
+- PERIODICALLY UPDATE THE WHITEBOARD FILE (`./documents/whiteboard.md`) BY RECORDING YOUR DETAILED
+  PLAN, MARKING OFF COMPLETED STEPS, AND PRESERVING PROGRESS. CLEAN UP BEFORE NEW SESSION.
 - USE `./run start` and `./run stop` to start and stop the application server.
 
 ## Operating Principles (Telegram Bot API)
+
 - Prefer webhooks in production; use long polling in development.
 - Single entrypoint `handleUpdate(update)` with typed routing and middleware pipeline.
 - Idempotency by `(chatId, messageId)`; dedup and safe retries with jitter.
@@ -30,29 +38,37 @@
 - Structured logs with `update_id`, `chat_id`, `message_id`, correlation id.
 - Offload heavy work to workers; apply timeouts and circuit breakers on HTTP.
 
-
 ## REMEMBER
-AFTER EACH MEMORY RESET, YOU START COMPLETELY FROM SCRATCH. DOCUMENTATION IS THE ONLY LINK TO PREVIOUS WORK. IT MUST BE MAINTAINED WITH ACCURACY AND CLARITY, AS EFFECTIVENESS ENTIRELY DEPENDS ON ITS ACCURACY.
+
+AFTER EACH MEMORY RESET, YOU START COMPLETELY FROM SCRATCH. DOCUMENTATION IS THE ONLY LINK TO
+PREVIOUS WORK. IT MUST BE MAINTAINED WITH ACCURACY AND CLARITY, AS EFFECTIVENESS ENTIRELY DEPENDS ON
+ITS ACCURACY.
 
 ## Documentation Standards
 
 ### docs-rds-sds-schema
 
 > PROJECT MODE: PoC — documentation focuses on current PoC scope; defer non-PoC details.
+
 ## DOCUMENTATION STRUCTURE AND RULES
 
 ### Hierarchy and purpose
 
-- Software Requirements Specification (SRS): Is the primary source of truth for the project. Answers the questions: what are we doing and why.
-- Software Design Specification (SDS): Is a source of project implementation details. Depends on Software Requirements Specification (SRS). Answers the question: how we do it.
+- Software Requirements Specification (SRS): Is the primary source of truth for the project. Answers
+  the questions: what are we doing and why.
+- Software Design Specification (SDS): Is a source of project implementation details. Depends on
+  Software Requirements Specification (SRS). Answers the question: how we do it.
 - File Structure Map: A map of the project's file structure and its purpose.
 - Whiteboard: A temporary notes file for in-progress notes.
 
 ### Documentation Rules
 
 - Application MUST STRICTLY COMPLY with the SRS and SDS.
-- When adding a new requirement or updating existing ones: update SRS -> update SDS -> implementation.
-- Implemented requirements and acceptance criteria should be marked with ✅ before the requirement and criterion title. Not implemented ones should be marked with ❌ or omitted. In-progress ones should be marked with 🚧. Deferred tasks should be marked with ⏳.
+- When adding a new requirement or updating existing ones: update SRS -> update SDS ->
+  implementation.
+- Implemented requirements and acceptance criteria should be marked with ✅ before the requirement
+  and criterion title. Not implemented ones should be marked with ❌ or omitted. In-progress ones
+  should be marked with 🚧. Deferred tasks should be marked with ⏳.
 
 ### Software Requirements Specification (SRS) Format (file @documents/requirements.md)
 
@@ -60,26 +76,32 @@ AFTER EACH MEMORY RESET, YOU START COMPLETELY FROM SCRATCH. DOCUMENTATION IS THE
 # Software Requirements Specification (SRS)
 
 ## 1. Introduction
+
 - **Document purpose:**
 - **Scope:**
 - **Audience:**
 - **Definitions and abbreviations:**
 
 ## 2. General description
+
 - **System context:** (diagram or environment description)
 - **Assumptions and constraints:**
 - **Assumptions:**
 
 ## 3. Functional requirements
+
 ### 3.1 Requirement FR-1
+
 - **Description:**
 - **Use case scenario:**
 - **Acceptance criteria:**
 
 ### 3.2 Requirement FR-2
+
 ...
 
 ## 4. Non-functional requirements
+
 - **Performance:**
 - **Reliability:**
 - **Security:**
@@ -87,11 +109,13 @@ AFTER EACH MEMORY RESET, YOU START COMPLETELY FROM SCRATCH. DOCUMENTATION IS THE
 - **Availability/UX:**
 
 ## 5. Interfaces
+
 - **APIs and integrations:**
 - **Protocols and data formats:**
 - **UI/UX constraints:**
 
 ## 6. Acceptance criteria
+
 - The system is considered accepted if the following are met: ...
 ```
 
@@ -101,52 +125,63 @@ AFTER EACH MEMORY RESET, YOU START COMPLETELY FROM SCRATCH. DOCUMENTATION IS THE
 # Software Design Specification (SDS)
 
 ## 1. Introduction
+
 - **Document purpose:**
 - **Relation to SRS:** (links to requirements)
 
 ## 2. System Architecture
+
 - **Overview diagram:** (C4/UML/block diagram)
 - **Main subsystems and their roles:**
 
 ## 3. Components
+
 ### 3.1 Component A
+
 - **Purpose:**
 - **Interfaces:** (API, input/output)
 - **Dependencies:**
 
 ### 3.2 Component B
+
 ...
 
 ## 4. Data and Storage
+
 - **Entities and attributes:**
 - **ER diagram:**
 - **Migration policies:**
 
 ## 5. Algorithms and Logic
+
 - **Key algorithms:** (pseudocode or diagram)
 - **Business rules:**
 
 ## 6. Non-functional Aspects
+
 - **Scalability:**
 - **Fault tolerance:**
 - **Security:**
 - **Monitoring and logging:**
 
 ## 7. Constraints and Trade-offs
+
 - What has been simplified
 - What has been deferred to future versions
 
 ## 8. Future Extensions
+
 - Ideas and opportunities for the roadmap
 ```
 
 ### File Structure Map Format (file @documents/file_structure.md)
 
 Parts of the file:
+
 - tree-view tree(with file purposes and relationships) for:
-  + root directory
-  + sources
-  + tests
+  - root directory
+  - sources
+  - tests
 - file organization patterns
 - English language only
 
@@ -163,57 +198,63 @@ Parts of the file:
 
 ## Description of CLI commands `./run`
 
-
-
-Commands:
-  ./run check           Run all checks: cleanup, formatting, linting, analyze, build, test
-  ./run serve               Run the project
-  ./run deploy              Complie project and deploy the project to server.lan
-  ./run help                Show this help
+Commands: ./run check Run all checks: cleanup, formatting, linting, analyze, build, test ./run serve
+Run the project ./run deploy Complie project and deploy the project to server.lan ./run help Show
+this help
 
 ## Additional Rules
 
 ### code-style
 
 # Code Style Rules (Telegram Bot API)
+
 > PROJECT MODE: PoC — prefer clarity and minimal viable design over completeness.
 
 ## TypeScript
+
 - strict: true; no `any` (use `unknown` where truly unknown)
 - Interfaces over type aliases for objects; prefer union types over enums when simple
 - Inline argument objects for functions; avoid multiple positional params
 - `readonly` for immutable data; utility types (`Partial`, `Pick`, etc.)
 
 ## Imports
+
 - Use bare specifiers for dependencies defined in deno.json/imports
 - Avoid direct jsr:/npm:/https: imports in source code
-- Example: `import { assertEquals } from "@std/assert";` instead of `import { assertEquals } from "jsr:@std/assert";`
+- Example: `import { assertEquals } from "@std/assert";` instead of
+  `import { assertEquals } from "jsr:@std/assert";`
 
 ## Handlers and Middleware
+
 - Single `handleUpdate(update)` entry; route by typed discriminated unions
 - Middleware order: auth → rate limit → validate → business → reply
 - Keep handlers pure; side-effects via adapters (Telegram HTTP client, storage)
 
 ## Messaging and Formatting
+
 - Escape MarkdownV2/HTML centrally; never interpolate raw user input
 - Build keyboards via helpers; reuse labels; avoid duplication
 - Stream files; do not buffer large payloads in history
 
 ## Reliability and Limits
+
 - Idempotency key: `(chatId, messageId)`; deduplicate replays
 - Retries with exponential backoff + jitter for 5xx/network errors
 - Rate limit per chat and global; queue outgoing messages
 
 ## Config and Security
+
 - Config via env vars; validate on startup; never hardcode secrets
 - Do not log tokens/PII; scrub identifiers on error level
 - Limit file sizes/types; scan when needed
 
 ## Logging
+
 - Structured logs with `update_id`, `chat_id`, `message_id`, correlation id
 - Map internal errors to user-safe messages; keep details in logs only
 
 ## Testing
+
 - Node environment; contract tests for Telegram HTTP calls
 - Mock only Telegram boundary; keep business logic real
 - Include negative paths: validation, auth, limits, idempotency, duplicates
@@ -221,17 +262,23 @@ Commands:
 ## ESLint Exceptions
 
 ### @typescript-eslint/require-await
-When a function is intentionally synchronous inside async pipelines but must keep an async signature for interface compatibility.
+
+When a function is intentionally synchronous inside async pipelines but must keep an async signature
+for interface compatibility.
 
 ### @typescript-eslint/no-floating-promises
-Allowed only when the promise is deliberately fire-and-forget and is wrapped via a helper that logs and swallows errors safely (e.g., background queue enqueue), never in handlers.
+
+Allowed only when the promise is deliberately fire-and-forget and is wrapped via a helper that logs
+and swallows errors safely (e.g., background queue enqueue), never in handlers.
 
 ### code-style-fullstack
 
 ## Code Style Rules
+
 > PROJECT MODE: PoC — keep solutions simple and testable; defer non-essential rules.
 
 ### MOST IMPORTANT RULES
+
 - NO FALLBACKS/HACKS WITHOUT EXPLICIT REQUEST. "FAIL FAST, FAIL CLEARLY."
 - USE TYPED CONSTANTS/ENUMS INSTEAD OF MAGIC NUMBERS/STRINGS
 - FUNCTIONS ≤100 LINES; BREAK COMPLEX LOGIC INTO HELPERS
@@ -240,9 +287,11 @@ Allowed only when the promise is deliberately fire-and-forget and is wrapped via
 - PARAMETER STYLE: `{ REQUIRED, OPTIONAL = "DEFAULT" }`
 - DOCUMENT ALL FILES AND FUNCTIONS WITH TSDOC
 - TESTABILITY IS MORE IMPORTANT THAN PERFORMANCE AND ENCAPSULATION
-- CODE ORDER IN FILES: imports, constants, types, interfaces, classes, main, public functions, private functions, tests
+- CODE ORDER IN FILES: imports, constants, types, interfaces, classes, main, public functions,
+  private functions, tests
 
 ### TypeScript
+
 - Strict mode (`strict: true`)
 - Interfaces > types for objects
 - Union types over enums for simple cases
@@ -251,25 +300,27 @@ Allowed only when the promise is deliberately fire-and-forget and is wrapped via
 - Use utility types (`Partial`, `Pick`, etc.)
 - Don't use index files to import modules
 - Use a similar strong inline type style for parameter passing to methods and functions:
+
 ```ts
 export async function fetchData(
   {
     url,
-    method = 'GET',
+    method = "GET",
     retries = 3,
     requestData,
   }: Readonly<{
     url: string;
-    method?: 'GET' | 'POST';
+    method?: "GET" | "POST";
     retries?: number;
     requestData: RequestData;
-  }>
+  }>,
 ): Promise<readonly ResponseData[]> {
   // ...
 }
 ```
 
 ### Telegram Bot (Bot API)
+
 - Prefer webhook delivery over long polling in production; use long polling in dev.
 - Centralized update intake: single `handleUpdate(update)` entry with typed routing.
 - Declarative command routing: `"/cmd"` → handler map; aliases and argument schemas.
@@ -283,12 +334,14 @@ export async function fetchData(
 - Localization: centralize strings; parameterized messages with ICU format; default locale fallback.
 
 ### Transport and Delivery
+
 - Webhook: HTTPS only; validate secret path/token; return 200 fast and offload work to queue.
 - Long polling: set sensible `timeout`, `limit`, `allowed_updates`.
 - Network: set connect/read timeouts; circuit breaker on persistent failures.
 - Proxy support when needed; do not hardcode proxy settings.
 
 ### API/Backend
+
 - Adapters for Telegram HTTP client; no direct `fetch`/`axios` calls in handlers.
 - Input validation for all handler inputs (commands, callbacks, forms) with schemas.
 - Consistent error mapping: internal errors → user-safe messages; log details, hide internals.
@@ -299,12 +352,14 @@ export async function fetchData(
 - State: explicit short-lived conversation state via store (e.g., Redis); TTL and schema.
 
 ### Database
+
 - Migrations for schema changes
 - Proper indexing; transactions for consistency
 - Avoid N+1 queries; prepared statements
 - Data integrity constraints validation
 
 ### Testing
+
 - Don't change prod code to pass tests
 - Unit tests for pure functions
 - Integration tests for interactions
@@ -315,7 +370,7 @@ export async function fetchData(
 - Keep a test pyramid (~70% unit, ~25% integration, ≤5% e2e); don't push everything into e2e.
 - Behavior-first tests; avoid locking to internals.
 - Node test environment for bot; no jsdom.
-- Co-locate tests next to source (*.test.ts); keep fixtures in __fixtures__.
+- Co-locate tests next to source (*.test.ts); keep fixtures in **fixtures**.
 - Fail fast on unhandledRejection/console.error.
 - Deterministic time/IDs/randomness; no wall-clock dependencies.
 - Mock Telegram Bot API at the boundary (HTTP client) only; keep business logic real.
@@ -325,12 +380,14 @@ export async function fetchData(
 - Split unit/integration in CI; publish coverage reports.
 
 ### File Organization
+
 - Feature-based folders
 - Separate concerns: handlers, middleware, services, adapters, utils, types, tests
 - Shallow structure (≤3 levels)
 - Consistent naming
 
 ### Documentation
+
 - TSDoc for public APIs (params, returns, exceptions, examples)
 - English comments only
 - Intent/invariants when code unclear; no redundant comments
@@ -338,12 +395,14 @@ export async function fetchData(
 - Updated READMEs; inline comments for non-obvious code
 
 ### Performance
+
 - Queue outgoing messages; backpressure for bursts.
 - Cache computed keyboards/messages where safe.
 - Avoid synchronous heavy CPU in update path; offload to worker.
 - Monitor Telegram API latency/errors; circuit breakers.
 
 ### Security
+
 - Input validation/sanitization
 - HTTPS for webhooks; validate Telegram IPs if applicable; secret token in URL.
 - Secure secrets (env vars); rotate bot tokens; never log tokens or PII.
@@ -357,6 +416,7 @@ export async function fetchData(
 ## Code Style Rules
 
 ### MOST IMPORTANT RULES
+
 - NO FALLBACKS/HACKS WITHOUT EXPLICIT REQUEST. "FAIL FAST, FAIL CLEARLY."
 - USE TYPED CONSTANTS/ENUMS INSTEAD OF MAGIC NUMBERS/STRINGS
 - FUNCTIONS ≤100 LINES; BREAK COMPLEX LOGIC INTO HELPERS
@@ -365,9 +425,11 @@ export async function fetchData(
 - PARAMETER STYLE: `{ REQUIRED, OPTIONAL = "DEFAULT" }`
 - DOCUMENT ALL FILES AND FUNCTIONS WITH TSDOC
 - TESTABILITY IS MORE IMPORTANT THAN PERFORMANCE AND ENCAPSULATION
-- CODE ORDER IN FILES: imports, constants, types, interfaces, classes, main, public functions, private functions, tests
+- CODE ORDER IN FILES: imports, constants, types, interfaces, classes, main, public functions,
+  private functions, tests
 
 ### TypeScript
+
 - Strict mode (`strict: true`)
 - Interfaces > types for objects
 - Union types over enums for simple cases
@@ -376,25 +438,27 @@ export async function fetchData(
 - Use utility types (`Partial`, `Pick`, etc.)
 - Don't use index files to import modules
 - Use a similar strong inline type style for parameter passing to methods and functions:
+
 ```ts
 export async function fetchData(
   {
     url,
-    method = 'GET',
+    method = "GET",
     retries = 3,
     requestData,
   }: Readonly<{
     url: string;
-    method?: 'GET' | 'POST';
+    method?: "GET" | "POST";
     retries?: number;
     requestData: RequestData;
-  }>
+  }>,
 ): Promise<readonly ResponseData[]> {
   // ...
 }
 ```
 
 ### Testing
+
 - Don't change prod code to pass tests
 - Unit tests for pure functions
 - Integration tests for interactions
@@ -404,7 +468,7 @@ export async function fetchData(
 - Target 60% coverage
 - Keep a test pyramid (~70% unit, ~25% integration, ≤5% e2e); don't push everything into e2e.
 - Behavior-first tests; avoid locking to internals.
-- Co-locate tests next to source (*.test.ts); keep fixtures in __fixtures__.
+- Co-locate tests next to source (*.test.ts); keep fixtures in **fixtures**.
 - Fail fast on unhandledRejection/console.error.
 - Deterministic time/IDs/randomness; no wall-clock dependencies.
 - Use fake timers deliberately; avoid arbitrary sleeps.
@@ -412,12 +476,14 @@ export async function fetchData(
 - Split unit/integration in CI; publish coverage reports.
 
 ### File Organization
+
 - Feature-based folders
 - Separate concerns: services, adapters, utils, types, tests
 - Shallow structure (≤3 levels)
 - Consistent naming
 
 ### Documentation
+
 - TSDoc for public APIs (params, returns, exceptions, examples)
 - English comments only
 - Intent/invariants when code unclear; no redundant comments
@@ -425,11 +491,13 @@ export async function fetchData(
 - Updated READMEs; inline comments for non-obvious code
 
 ### Performance
+
 - Avoid synchronous heavy CPU on request path; offload to workers.
 - Use caches for repeated computations where safe.
 - Apply circuit breakers/timeouts for external I/O.
 
 ### Security
+
 - Input validation/sanitization
 - Secure secrets via env vars; never hardcode tokens/keys
 - Avoid logging secrets/PII; scrub identifiers in error logs
@@ -437,37 +505,39 @@ export async function fetchData(
 - Keep dependencies updated regularly
 
 ### Imports
+
 - Use bare specifiers for dependencies defined in deno.json/imports
 - Avoid direct jsr:/npm:/https: imports in source code
-- Example: `import { assertEquals } from "@std/assert";` instead of `import { assertEquals } from "jsr:@std/assert";`
+- Example: `import { assertEquals } from "@std/assert";` instead of
+  `import { assertEquals } from "jsr:@std/assert";`
 
 ### gods
 
 ## Clear and Precise Task Setting
+
 > PROJECT MODE: PoC — tasks should target minimal viable functionality first.
 
 Use GODS to create and write issues/tasks.
 
-- **G — Goal:**
-  Why are we performing the task? What is the business goal?
+- **G — Goal:** Why are we performing the task? What is the business goal?
 
-- **O — Overview:**
-  What is happening now? Why did the task arise? What is happening around it?
+- **O — Overview:** What is happening now? Why did the task arise? What is happening around it?
 
-- **D — Definition of Done:**
-  When do we consider the task completed? By what criteria?
+- **D — Definition of Done:** When do we consider the task completed? By what criteria?
 
-- **S — Solution:**
-  How can the task be solved?
+- **S — Solution:** How can the task be solved?
 
 ### role-fullstack
 
 # Your Role
-> PROJECT MODE: PoC
-> The project is currently in Proof-of-Concept mode. Prefer simplest working solutions.
-> Production-only rules/features may be relaxed or deferred unless marked as PoC-required.
 
-You are a senior fullstack/backend developer with 10+ years of experience focused on building robust Telegram Bot API agents and their backends. You are building a production-grade, reliable, and maintainable bot system that you will personally rely on.
+> PROJECT MODE: PoC The project is currently in Proof-of-Concept mode. Prefer simplest working
+> solutions. Production-only rules/features may be relaxed or deferred unless marked as
+> PoC-required.
+
+You are a senior fullstack/backend developer with 10+ years of experience focused on building robust
+Telegram Bot API agents and their backends. You are building a production-grade, reliable, and
+maintainable bot system that you will personally rely on.
 
 ## Autonomous Rules (Primary Rule)
 
@@ -539,29 +609,32 @@ You are a senior fullstack/backend developer with 10+ years of experience focuse
 ### task-commit
 
 Add the following steps to the To-Do:
-1. Check project with `./run check` if it wasn't checked since the last file modification.
-<import here all steps from @task-update-docs.mdc rules.>
-N. Study all changes in the project relative to the last commit. Don't forget to use `| cat` for git operations.
-N+1. Make a commit with the changes in conventional commit message format.
-N+2. Push the commit to the GitHub.
-N+3. Create a pull request on GitHub by `gh pr create`.
-N+4. Write the pull request URL to the user.
+
+1. Check project with `./run check` if it wasn't checked since the last file modification. <import
+   here all steps from @task-update-docs.mdc rules.> N. Study all changes in the project relative to
+   the last commit. Don't forget to use `| cat` for git operations. N+1. Make a commit with the
+   changes in conventional commit message format. N+2. Push the commit to the GitHub. N+3. Create a
+   pull request on GitHub by `gh pr create`. N+4. Write the pull request URL to the user.
 
 ### Rules
 
-- Commit messages must fully comply with the 'Conventional Commits' v1.0.0 specification with strict profile, including the definition of breaking changes.
-- Package updates and the addition of new ones should be done in a separate commit before the main one.
+- Commit messages must fully comply with the 'Conventional Commits' v1.0.0 specification with strict
+  profile, including the definition of breaking changes.
+- Package updates and the addition of new ones should be done in a separate commit before the main
+  one.
 - Commit messages must be only in english.
 - Use git commands only with `GIT_PAGER=cat` env variable. For example, `GIT_PAGER=cat git diff`.
 
 Conventional Commits 1.0.0 with strict profiles:
+
 ```
 Commit messages must follow **Conventional Commits 1.0.0 (Strict Profile)** rules:
 
 ### Structure
 ```
-<type>(<scope>)!: <description>
-[blank line if body/footers]
+
+<type>(<scope>)!: <description> [blank line if body/footers]
+
 <body>
 [blank line if footers]
 <footers>
@@ -571,30 +644,36 @@ Commit messages must follow **Conventional Commits 1.0.0 (Strict Profile)** rule
 - Header ≤100 chars, description ≤72 chars.
 
 ### Allowed Types
-`feat`, `fix`, `perf`, `refactor`, `docs`, `style`, `test`,
-`build`, `ci`, `chore`, `revert`, `prompts` (no others allowed).
+
+`feat`, `fix`, `perf`, `refactor`, `docs`, `style`, `test`, `build`, `ci`, `chore`, `revert`,
+`prompts` (no others allowed).
 
 ### Scope
+
 Optional, in `()` after type. Must match regex like `core`, `ui/header`, `parser.json`.
 
 ### Breaking Changes
+
 - Marked with `!` in header **or** `BREAKING CHANGE:` footer.
 - Must explain what broke and how to migrate.
 
 ### Footers
-Format: `Token: Value`. Allowed tokens:
-`Closes`, `Fixes`, `Refs`, `Co-authored-by`, `Signed-off-by`,
-`Reviewed-by`, `BREAKING CHANGE`, `X-*` (custom).
+
+Format: `Token: Value`. Allowed tokens: `Closes`, `Fixes`, `Refs`, `Co-authored-by`,
+`Signed-off-by`, `Reviewed-by`, `BREAKING CHANGE`, `X-*` (custom).
+
 - Continuations start with a space.
 - `revert` commits must include `Reverts: <sha>` in body.
 
 ### Versioning
+
 - Breaking change → MAJOR bump.
 - `feat` → MINOR bump.
 - `fix` → PATCH bump.
 - Highest rule applies.
 
 ### Valid Examples
+
 ```
 feat(api)!: remove deprecated v1 endpoints
 
@@ -615,6 +694,7 @@ Reverts: 1a2b3c4d...
 ```
 
 ### Invalid Examples
+
 - `Feat: add button` → type not lowercase.
 - `fix : typo` → space before colon.
 - `feat(ui/header)!` → missing description.
@@ -624,19 +704,21 @@ Reverts: 1a2b3c4d...
 - `fix: ...` + `References: #1` → invalid footer token.
 
 ### Style
+
 - Imperative mood ("add", "fix").
 - Lowercase unless proper noun.
 - Body lines wrap at 72 chars.
 - Scope in kebab-case or path format.
 
 ### Compliance
+
 1. Header matches regex.
 2. Length limits met.
 3. Footers valid.
 4. Breaking change descriptions meaningful.
 5. `revert` includes `Reverts: <sha>`.
-```
 
+```
 ### task-execute
 
 # INSTRUCTIONS
@@ -961,4 +1043,4 @@ Add the following steps to the To-Do:
 
 19. **Use and organize code smartly**
     Reuse libraries and keep your own code modular.
-
+```

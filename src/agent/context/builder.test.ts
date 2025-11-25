@@ -403,7 +403,7 @@ Deno.test("ContextBuilder: preserves system prompt templating with server info a
   );
 });
 
-Deno.test("ContextBuilder: tracks accumulated token usage", async () => {
+Deno.test("ContextBuilder: tracks accumulated token usage", () => {
   const compactor = new SimpleHistoryCompactor(1000);
   const builder = new ContextBuilder(compactor, createMockSystemInfo(), new MockFactsStorage());
 
@@ -415,7 +415,11 @@ Deno.test("ContextBuilder: tracks accumulated token usage", async () => {
   builder.append({ role: "assistant", content: "Hi there" });
 
   assertEquals(builder.getMessageCount(), 2, "Should have 2 messages");
-  assertEquals(builder.getAccumulatedTokens(), 0, "Token count should still be 0 until we add usage");
+  assertEquals(
+    builder.getAccumulatedTokens(),
+    0,
+    "Token count should still be 0 until we add usage",
+  );
 
   // Simulate LLM response with token usage
   builder.addTokenUsage(10, 20);

@@ -4,7 +4,7 @@
  * without losing important information.
  */
 
-import type { ModelMessage, LanguageModel } from "ai";
+import type { LanguageModel, ModelMessage } from "ai";
 import { log } from "../../utils/logger.ts";
 
 /**
@@ -38,7 +38,7 @@ export class SummaryGenerator {
    * @param messages - Messages to summarize
    * @returns Summarized conversation as an assistant message
    */
-  async generateSummary(messages: readonly ModelMessage[]): Promise<ModelMessage> {
+  generateSummary(messages: readonly ModelMessage[]): ModelMessage {
     log({
       mod: "summary_generator",
       event: "summary_start",
@@ -82,5 +82,4 @@ This conversation has been summarized to maintain context efficiency.`;
       throw error;
     }
   }
-
 }

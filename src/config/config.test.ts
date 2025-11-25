@@ -116,14 +116,8 @@ Deno.test("config: parses CSV owner IDs correctly", () => {
   }
 });
 
-Deno.test("config: handles .env file loading", () => {
+Deno.test("config: handles environment variable loading", () => {
   try {
-    // Create a temporary .env file
-    const envContent =
-      "TELEGRAM_BOT_TOKEN=env_token\nTELEGRAM_OWNER_IDS=987\nAGENT_LLM_API_KEY=env_key\n";
-    Deno.writeTextFileSync(".env", envContent);
-
-    // Don't set env vars - should load from .env
     setTestEnv({
       TELEGRAM_BOT_TOKEN: "env_token",
       TELEGRAM_OWNER_IDS: "987",
@@ -135,11 +129,6 @@ Deno.test("config: handles .env file loading", () => {
     assertEquals(config.agent.llm.apiKey, "env_key");
   } finally {
     restoreEnv();
-    try {
-      Deno.removeSync(".env");
-    } catch {
-      // Ignore if file doesn't exist
-    }
   }
 });
 

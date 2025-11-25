@@ -1,10 +1,18 @@
 # History Compression Mechanism Integration Plan
 
 ## Overview
-Port the history compression mechanism from `reference/history-manager.ts` into the current project's architecture. Use a unified `HistoryCompactor` interface with two implementations: `SimpleHistoryCompactor` (simple trimming) and `SummarizingHistoryCompactor` (LLM-powered compression).
+
+Port the history compression mechanism from `reference/history-manager.ts` into the current
+project's architecture. Use a unified `HistoryCompactor` interface with two implementations:
+`SimpleHistoryCompactor` (simple trimming) and `SummarizingHistoryCompactor` (LLM-powered
+compression).
 
 ## Problem Statement
-Currently, the project uses `SimpleContextCompactor` for simple symbol-based trimming of message history. The reference implementation provides a more sophisticated approach using LLM-powered summarization:
+
+Currently, the project uses `SimpleContextCompactor` for simple symbol-based trimming of message
+history. The reference implementation provides a more sophisticated approach using LLM-powered
+summarization:
+
 - Automatically summarizes old conversation history when token count exceeds a threshold
 - Preserves recent messages intact
 - Maintains conversation context efficiently without losing information
@@ -12,12 +20,14 @@ Currently, the project uses `SimpleContextCompactor` for simple symbol-based tri
 ## Current Architecture
 
 ### Message History Management
+
 - **Component:** `ContextBuilder` (src/agent/context/builder.ts)
 - **Compaction:** `SimpleContextCompactor` (src/agent/context/compactor.ts)
 - **Mechanism:** Symbol-based trimming + tool-call/tool-result consistency validation
 - **Limitation:** Deletes old messages instead of summarizing them
 
 ### Key Dependencies
+
 - `ModelMessage[]` from Vercel AI SDK
 - `SystemInfo` for context enrichment
 - `FactsStorage` for persistent facts
@@ -26,7 +36,9 @@ Currently, the project uses `SimpleContextCompactor` for simple symbol-based tri
 ## Reference Implementation Analysis
 
 ### Source: `reference/history-manager.ts`
+
 **Key Mechanisms:**
+
 1. **Token Threshold Detection**
    - Tracks token count of messages
    - Configurable `summaryTokenThreshold`
@@ -55,14 +67,17 @@ Currently, the project uses `SimpleContextCompactor` for simple symbol-based tri
 ## Integration Plan
 
 ### Phase 1: Rename & Consolidate Compactor Interface
+
 **File:** `src/agent/context/compactor.ts`
 
 **Changes:**
+
 - Rename `ContextCompactor` → `HistoryCompactor`
 - Rename `SimpleContextCompactor` → `SimpleHistoryCompactor`
 - Keep existing implementation intact
 
 **New Interface:**
+
 ```typescript
 interface HistoryCompactor {
   /**
@@ -80,14 +95,17 @@ interface HistoryCompactor {
 ```
 
 ### Phase 2: Create SummarizingHistoryCompactor
+
 **File:** `src/agent/context/compactor.ts` (add new class)
 
 **Responsibility:**
+
 - Implement LLM-powered history compression
 - Token threshold configured via immutable constructor parameter
 - Fallback to simple trimming on LLM errors
 
 **Implementation:**
+
 ```typescript
 class SummarizingHistoryCompactor implements HistoryCompactor {
   constructor(
@@ -95,7 +113,7 @@ class SummarizingHistoryCompactor implements HistoryCompactor {
     summaryTokenThreshold: number | undefined,
     summaryGenerator: SummaryGenerator,
     logger: Logger,
-  ) { /* ... */ }
+  ) {/* ... */}
 
   async compact(messages: readonly ModelMessage[]): Promise<ModelMessage[]> {
     // Check if threshold is set and exceeded
@@ -103,20 +121,23 @@ class SummarizingHistoryCompactor implements HistoryCompactor {
     // If no: fallback to simple trimming
   }
 
-  estimateSymbols(message: ModelMessage): number { /* ... */ }
+  estimateSymbols(message: ModelMessage): number {/* ... */}
 }
 ```
 
 ### Phase 3: Create Summary Generator Service
+
 **File:** `src/agent/context/summary-generator.ts`
 
 **Responsibility:**
+
 - Encapsulate LLM call for creating summaries
 - Handle streaming response processing
 - Format summary prompt with conversation history
 - Error handling and cost tracking
 
 **Key Features:**
+
 - Uses existing LLM client pattern
 - Specialized summary prompt (adapted from reference)
 - Structured output parsing (Question, FinalAnswer, Evidence)
@@ -124,25 +145,28 @@ class SummarizingHistoryCompactor implements HistoryCompactor {
 - Cost tracking integration
 
 ### Phase 4: Update ContextBuilder
+
 **File:** `src/agent/context/builder.ts`
 
 **Changes:**
+
 - Update constructor to accept `HistoryCompactor` (dependency injection)
 - Remove internal compactor creation
 - Update `getContext()` to be async (to support async compaction)
 - Handle both sync and async compact() returns
 
 **Constructor:**
+
 ```typescript
 class ContextBuilder {
   constructor(
     compactor: HistoryCompactor,
     systemInfo: SystemInfo,
-    factsStorage: FactsStorage
-  ) { /* ... */ }
+    factsStorage: FactsStorage,
+  ) {/* ... */}
 
   async getContext(
-    systemPromptTemplate: string
+    systemPromptTemplate: string,
   ): Promise<{ systemPrompt: string; messages: ModelMessage[] }> {
     // ... always await compact() which may return Promise or direct result
   }
@@ -150,15 +174,17 @@ class ContextBuilder {
 ```
 
 ### Phase 5: Configuration & Environment Variables
+
 **Files:** `src/config/types.ts` and `src/config/load.ts`
 
 **New Config:**
+
 ```typescript
 interface AgentConfig {
   agent: {
     history: {
       maxSymbols: number;
-      summaryTokenThreshold?: number;  // NEW (undefined = disabled)
+      summaryTokenThreshold?: number; // NEW (undefined = disabled)
     };
     // ... rest of agent config
   };
@@ -167,14 +193,17 @@ interface AgentConfig {
 ```
 
 **Environment Variables:**
+
 - `AGENT_HISTORY_SUMMARY_TOKEN_THRESHOLD` (optional, default undefined)
   - Example: `50000` triggers summarization when message tokens exceed 50k
   - Recommended range: 30,000 - 100,000 tokens
 
 ### Phase 6: Integration with MainAgent/Agent Factory
+
 **Files:** `src/agent/main-agent.ts` and agent creation
 
 **Factory Pattern:**
+
 ```typescript
 export function createMainAgent(config: Config, ...): MainAgent {
   // Create summary generator if summarization enabled
@@ -200,11 +229,14 @@ export function createMainAgent(config: Config, ...): MainAgent {
 ```
 
 ### Phase 7: Testing
+
 **Files:**
+
 - `src/agent/context/compactor.test.ts` (update for new names)
 - `src/agent/context/summary-generator.test.ts` (new)
 
 **Test Coverage:**
+
 - Token threshold detection
 - Summarization trigger logic
 - Fallback to simple trimming
@@ -217,45 +249,53 @@ export function createMainAgent(config: Config, ...): MainAgent {
 ## Design Decisions
 
 ### 1. Immutable Constructor Threshold
+
 - `summaryTokenThreshold` passed to constructor, never changed
 - Enables dependency injection pattern
 - Simplifies testing (mock compactors with different thresholds)
 - Follows existing project patterns
 
 ### 2. Unified Interface
+
 - Single `HistoryCompactor` interface
 - Two implementations: `SimpleHistoryCompactor`, `SummarizingHistoryCompactor`
 - Eliminates confusion with two similar names (`ContextCompactor` vs `HistoryCompactor`)
 
 ### 3. Async/Sync Hybrid
+
 - `compact()` returns `Promise<ModelMessage[]> | ModelMessage[]`
 - Allows both sync and async implementations
 - `ContextBuilder.getContext()` always awaits (transparent to callers)
 - Works with both implementations seamlessly
 
 ### 4. Compactor Selection via Factory
+
 - Agent factory creates appropriate compactor based on config
 - `ContextBuilder` receives compactor via constructor (DI)
 - Enables clean testing with mock compactors
 - Follows Deno project patterns
 
 ### 5. Summary Generation Encapsulation
+
 - `SummaryGenerator` handles all LLM interaction
 - Reusable service (could be used elsewhere)
 - Separate concerns: generation vs. compaction logic
 
 ### 6. Token Counting Strategy
+
 - Primary: Use message usage metadata if available (preferred)
 - Fallback: Use symbol estimation (length-based)
 - Ensures compatibility with all message types
 
 ### 7. Error Handling
+
 - If summarization fails, fall back to simple trimming
 - Log error for monitoring
 - Don't interrupt user interaction
 - Preserve history integrity
 
 ### 8. Gradual Rollout
+
 - Start with `summaryTokenThreshold` undefined (disabled by default)
 - Enable via config for testing
 - Monitor costs and quality
@@ -264,7 +304,9 @@ export function createMainAgent(config: Config, ...): MainAgent {
 ## Compatibility Considerations
 
 ### Existing Code Impact
-- **compactor.ts:** Rename `ContextCompactor` → `HistoryCompactor`, `SimpleContextCompactor` → `SimpleHistoryCompactor`
+
+- **compactor.ts:** Rename `ContextCompactor` → `HistoryCompactor`, `SimpleContextCompactor` →
+  `SimpleHistoryCompactor`
 - **ContextBuilder:** Constructor signature changes (now receives compactor)
   - Update all instantiation sites to pass compactor
   - `getContext()` becomes async (callers must await)
@@ -272,6 +314,7 @@ export function createMainAgent(config: Config, ...): MainAgent {
 - **Config:** New optional parameter (no breaking change with default undefined)
 
 ### Migration Path
+
 1. Rename `ContextCompactor` interface to `HistoryCompactor`
 2. Rename `SimpleContextCompactor` to `SimpleHistoryCompactor`
 3. Create `SummaryGenerator` service
@@ -283,6 +326,7 @@ export function createMainAgent(config: Config, ...): MainAgent {
 9. Update configuration loading to support threshold
 
 ## File Structure
+
 ```
 src/agent/context/
 ├── compactor.ts               # MODIFIED (renamed, new implementation)
@@ -336,6 +380,7 @@ src/agent/
 10. ✅ No performance regression: Common case (threshold undefined) unaffected
 
 ## References
+
 - Reference implementation: `reference/history-manager.ts`
 - Current compactor: `src/agent/context/compactor.ts`
 - Current builder: `src/agent/context/builder.ts`
@@ -343,7 +388,9 @@ src/agent/
 - MainAgent: `src/agent/main-agent.ts`
 
 ## Notes
-- Reference implementation uses different architecture (UserDataRepository) - adapt only core compression logic
+
+- Reference implementation uses different architecture (UserDataRepository) - adapt only core
+  compression logic
 - Focus on incremental integration to minimize risk
 - Keep `SimpleHistoryCompactor` as fallback for robustness
 - Summary prompt should be tuned for home server agent context

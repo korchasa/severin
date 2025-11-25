@@ -259,14 +259,13 @@ export class SummarizingHistoryCompactor implements HistoryCompactor {
 
     // Add dummy user message if summary is first message
     // (to maintain proper message alternation)
-    const messagesToUse: ModelMessage[] =
-      toKeep.length > 0 && toKeep[0].role === "user"
-        ? [summaryMessage, ...toKeep]
-        : [
-          { role: "user", content: "[Previous conversation summary]" },
-          summaryMessage,
-          ...toKeep,
-        ];
+    const messagesToUse: ModelMessage[] = toKeep.length > 0 && toKeep[0].role === "user"
+      ? [summaryMessage, ...toKeep]
+      : [
+        { role: "user", content: "[Previous conversation summary]" },
+        summaryMessage,
+        ...toKeep,
+      ];
 
     // Apply consistency check to final messages
     return this.ensureToolConsistency(messagesToUse);

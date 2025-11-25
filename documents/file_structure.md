@@ -49,7 +49,11 @@ src/
 │   │   └── mock.ts           # Mock facts storage for tests
 │   ├── context/
 │   │   ├── builder.ts        # ContextBuilder: symbol-limited context & prompt templating
-│   │   └── builder.test.ts
+│   │   ├── builder.test.ts
+│   │   ├── compactor.ts      # History compactor for context trimming and consistency
+│   │   ├── compactor.test.ts
+│   │   ├── summary-generator.ts # LLM-based summary generation for history compression
+│   │   └── PLAN.md           # History compression integration plan
 │   └── tools/
 │       ├── terminal.ts      # Terminal command execution tool
 │       ├── types.ts         # Terminal tool request/response types
