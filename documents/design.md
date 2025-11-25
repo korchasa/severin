@@ -79,6 +79,7 @@ graph TD
 - **Testing:** `Deno.test` co-located (*.test.ts)
 - **Correlation ID:** custom timestamp-based generator (base64-encoded)
 - **Processes:** `Deno.Command` (no shell/TTY)
+- **Retry:** Exponential backoff with jitter for LLM API calls
 - **LLM:** Vercel AI SDK (`ai`) with any compatible model (e.g., OpenAI gpt-4o-mini, Claude, etc.);
   Experimental_Agent for tool orchestration
 
@@ -351,6 +352,7 @@ interface Check {
 - **Integration:**
   - All agents receive `SystemInfo` instance, `FactsStorage`, and `CostCalculator` for contextual
     awareness and cost tracking in prompts.
+  - All LLM API calls wrapped with retry mechanism for resilience against transient failures.
   - Telegram handlers use `MainAgent.processUserQuery()` which returns `{text, cost}`; cost
     displayed in responses.
   - Scheduler uses `AuditTask.auditMetrics()` + `DiagnoseTask.diagnose()` with terminal tool access.
@@ -365,6 +367,7 @@ interface Check {
 - **Problem Diagnosis:** DiagnoseTask `diagnose` for root cause analysis with terminal tool access.
 - Uses Vercel AI SDK Experimental_Agent for tool orchestration.
 - Supports multi-step tool calls with configurable limits.
+- **Resilience:** All API calls wrapped with exponential backoff retry mechanism.
 - **Prompt Composition:** System prompts include comprehensive server info from startup collection,
   specialized instructions per task.
 - Specialized prompts: conversation context with server awareness, audit analysis, diagnostic
@@ -372,6 +375,18 @@ interface Check {
 - Model: any compatible model via Vercel AI SDK (e.g., OpenAI gpt-4o-mini, Claude, etc.).
 - Response formats: natural text for conversations, structured decisions for monitoring.
 - **Text Formatting:** `markdownToTelegramHTML` converts Markdown to Telegram HTML format.
+
+### 4.10.5. Retry Mechanism
+
+- **Purpose:** Handle transient LLM API failures with exponential backoff and jitter
+- **Implementation:** `withRetry()` utility function with configurable options:
+  - `maxRetries`: Maximum retry attempts (default 3)
+  - `initialDelayMs`: Initial delay between retries (default 1000ms)
+  - `factor`: Exponential backoff multiplier (default 2)
+  - `opName`: Operation name for logging
+- **Integration:** All LLM API calls (MainAgent, AuditTask, DiagnoseTask) wrapped with retry logic
+- **Logging:** Structured logs for retry attempts with attempt number, delay, and error details
+- **Error Handling:** Final failure after all retries with comprehensive error logging
 
 ### 4.11. LLM Tools
 
@@ -761,7 +776,7 @@ sequenceDiagram
 | FR-14 Agent Facade Architecture                | 4.10 (Agent Facade), createAgent factory, ConversationHistory, LlmClient, PromptRenderer with SystemInfo integration    |
 | FR-15 Persistent Facts Storage                 | 4.12 (Facts Storage and Management), integrated in MainAgent system prompts                                             |
 | NFR Performance                                | 30s tool timeouts, output limits                                                                                        |
-| NFR Reliability                                | simple periodic checks, history trimming                                                                                |
+| NFR Reliability                                | simple periodic checks, history trimming, LLM retry mechanism with exponential backoff                                 |
 | NFR Security                                   | 7 (owner access only, no secrets in logs)                                                                               |
 | Interfaces                                     | 4.10–4.11 (type contracts), Telegram Bot API                                                                            |
 | Acceptance (system-level)                      | Fully reflected in command mechanics, scheduler, history and tool                                                       |
@@ -828,6 +843,8 @@ src/
   utils/
     logger.ts            # Structured logging with pretty/JSON formats
     logger.test.ts       # Logger tests
+    retry.ts             # Exponential backoff retry utility with jitter
+    retry.test.ts        # Retry utility unit tests
 ```
 
 ---
@@ -840,6 +857,8 @@ src/
 - Text without `/` → agent query with conversation context; <2 chars ignored.
 - Empty LLM responses filtered; responses logged and stored via agent.
 - Agent facade: unified interface for LLM interactions, history management, and tool orchestration.
+- Retry mechanism: exponential backoff with jitter for all LLM API calls (MainAgent, AuditTask,
+  DiagnoseTask).
 - Scheduler: periodic metrics collection with agent-based intelligent anomaly detection.
 - System information: collected at startup, included in all agent system prompts (MainAgent,
   AuditTask, DiagnoseTask).

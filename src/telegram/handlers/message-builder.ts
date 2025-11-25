@@ -2,6 +2,7 @@ import { Message } from "grammy/types";
 import type { Context } from "grammy";
 import { escapeHtml, markdownToTelegramHTML as html } from "../telegram-format.ts";
 import { ToolSet, TypedToolCall, TypedToolResult } from "ai";
+import { withRetry } from "../../utils/retry.ts";
 
 interface MessageBuilder {
   setThoughts(thoughts: string): void;
@@ -68,11 +69,15 @@ ${finalCost ? "<i>" + finalCost.toFixed(4) + "$</i>" : ""}
         return;
       }
       lastUpdatedContent = newContent;
-      await ctx.api.editMessageText(
-        telegramMessage.chat.id,
-        telegramMessage.message_id,
-        newContent,
-        { parse_mode: "HTML" },
+      await withRetry(
+        () =>
+          ctx.api.editMessageText(
+            telegramMessage.chat.id,
+            telegramMessage.message_id,
+            newContent,
+            { parse_mode: "HTML" },
+          ),
+        { opName: "editMessageText" },
       );
     },
   } as MessageBuilder;

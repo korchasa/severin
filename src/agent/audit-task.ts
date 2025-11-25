@@ -12,6 +12,7 @@ import type { LanguageModelV2, LanguageModelV2Usage } from "@ai-sdk/provider";
 import { z } from "zod";
 import { SystemInfo } from "../system-info/system-info.ts";
 import { FactsStorage } from "./facts/types.ts";
+import { withRetry } from "../utils/retry.ts";
 
 /**
  * Public interface for the Agent facade.
@@ -76,16 +77,22 @@ export function createAuditTask({
         const prompt = await generateAuditSystemPrompt({ systemInfo, factsStorage, rawAuditData });
         log({ mod: "agent", event: "process_audit_results_message", message: prompt });
         // Generate LLM decision
-        const { object, usage } = await generateObject({
-          model: llmModel,
-          temperature: llmTemperature,
-          messages: [{ role: "system", content: prompt }],
-          schema: z.object({
-            isEscalationNeeded: z.boolean(),
-            reason: z.string(),
-            evidence: z.array(z.object({ metric: z.string(), value: z.string() })),
-          }),
-        });
+        const { object, usage } = await withRetry(
+          () =>
+            generateObject({
+              model: llmModel,
+              temperature: llmTemperature,
+              messages: [{ role: "system", content: prompt }],
+              schema: z.object({
+                isEscalationNeeded: z.boolean(),
+                reason: z.string(),
+                evidence: z.array(
+                  z.object({ metric: z.string(), value: z.string() }),
+                ),
+              }),
+            }),
+          { opName: "audit_generate_object" },
+        );
 
         log({
           mod: "agent",

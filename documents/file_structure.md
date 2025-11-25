@@ -94,7 +94,9 @@ src/
 │       └── text-message-handler.test.ts
 └── utils/
     ├── logger.ts            # Structured logging with pretty/JSON formats
-    └── logger.test.ts
+    ├── logger.test.ts
+    ├── retry.ts             # Exponential backoff retry utility with jitter
+    └── retry.test.ts        # Retry utility unit tests
 ```
 
 ## Test Structure

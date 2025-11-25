@@ -15,6 +15,7 @@ import { SystemInfo } from "../system-info/system-info.ts";
 import { FactsStorage } from "./facts/types.ts";
 import { AuditSummary } from "./audit-task.ts";
 import { CostCalculator } from "../llm/cost.ts";
+import { withRetry } from "../utils/retry.ts";
 
 export interface DiagnoseTask {
   /**
@@ -100,9 +101,13 @@ export function createDiagnoseTask({
             }),
           }),
         });
-        const { experimental_output: summary, usage } = await agent.generate({
-          prompt: systemPrompt,
-        });
+        const { experimental_output: summary, usage } = await withRetry(
+          () =>
+            agent.generate({
+              prompt: systemPrompt,
+            }),
+          { opName: "diagnose_generate" },
+        );
 
         log({
           mod: "agent",

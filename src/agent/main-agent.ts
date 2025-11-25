@@ -28,6 +28,7 @@ import {
   ToolName,
 } from "./tools/index.ts";
 import { CostCalculator } from "../llm/cost.ts";
+import { withRetry } from "../utils/retry.ts";
 
 // Helper types for stream parts
 export type deltaTextHandler = (delta: string) => void;
@@ -155,190 +156,197 @@ export class MainAgent implements MainAgentAPI {
     });
 
     try {
-      // Stream agent response
-      log({
-        mod: "agent",
-        level: "info",
-        event: "agent_context",
-        correlationId,
-        messages,
-      });
-      const { fullStream, text, totalUsage } = agent.stream({ messages: messages });
+      return await withRetry(
+        async () => {
+          // Stream agent response
+          log({
+            mod: "agent",
+            level: "info",
+            event: "agent_context",
+            correlationId,
+            messages,
+          });
+          const { fullStream, text, totalUsage } = agent.stream({
+            messages: messages,
+          });
 
-      let preToolBuffer = "";
-      let visibleBuffer = "";
-      let seenTool = false;
-      const pendingToolCalls: Array<{
-        toolCallId: string;
-        toolName: ToolName;
-        input: ToolInput;
-      }> = [];
-      const completedToolResults: Array<{
-        toolCallId: string;
-        toolName: string;
-        output: LanguageModelV2ToolResultOutput;
-      }> = [];
+          let preToolBuffer = "";
+          let visibleBuffer = "";
+          let seenTool = false;
+          const pendingToolCalls: Array<{
+            toolCallId: string;
+            toolName: ToolName;
+            input: ToolInput;
+          }> = [];
+          const completedToolResults: Array<{
+            toolCallId: string;
+            toolName: string;
+            output: LanguageModelV2ToolResultOutput;
+          }> = [];
 
-      // Use strictly typed fullStream
-      try {
-        for await (const part of fullStream) {
-          switch (part.type) {
-            case "text-delta": {
-              const p = part as TextDeltaPart;
-              if (!seenTool) {
-                preToolBuffer += p.text;
-              } else {
-                visibleBuffer += p.text;
-              }
-              try {
-                onTextDelta?.(p.text);
-              } catch (e) {
-                log({
-                  mod: "agent",
-                  level: "debug",
-                  event: "onTextDelta_error",
-                  error: (e as Error).message,
-                });
-              }
-              break;
-            }
-            case "tool-call": {
-              const tc = part as ToolCallStreamPart;
+          // Use strictly typed fullStream
+          try {
+            for await (const part of fullStream) {
+              switch (part.type) {
+                case "text-delta": {
+                  const p = part as TextDeltaPart;
+                  if (!seenTool) {
+                    preToolBuffer += p.text;
+                  } else {
+                    visibleBuffer += p.text;
+                  }
+                  try {
+                    onTextDelta?.(p.text);
+                  } catch (e) {
+                    log({
+                      mod: "agent",
+                      level: "debug",
+                      event: "onTextDelta_error",
+                      error: (e as Error).message,
+                    });
+                  }
+                  break;
+                }
+                case "tool-call": {
+                  const tc = part as ToolCallStreamPart;
 
-              // Emit "thoughts" exactly at the first tool-call (text before tools)
-              if (!seenTool && preToolBuffer) {
-                try {
-                  onCallThoughts?.(preToolBuffer);
-                } catch (e) {
+                  // Emit "thoughts" exactly at the first tool-call (text before tools)
+                  if (!seenTool && preToolBuffer) {
+                    try {
+                      onCallThoughts?.(preToolBuffer);
+                    } catch (e) {
+                      log({
+                        mod: "agent",
+                        level: "debug",
+                        event: "onThoughts_error",
+                        error: (e as Error).message,
+                      });
+                    }
+                  }
+                  seenTool = true;
+
+                  const toolCallForHook: TypedToolCall<ToolSet> = {
+                    type: "tool-call",
+                    toolCallId: tc.toolCallId,
+                    toolName: tc.toolName as unknown as string,
+                    input: tc.input,
+                  };
+                  const toolCallForPending = {
+                    toolCallId: tc.toolCallId,
+                    toolName: tc.toolName,
+                    input: tc.input,
+                  };
+                  pendingToolCalls.push(toolCallForPending);
+                  try {
+                    onBeforeCall?.(toolCallForHook);
+                  } catch (e) {
+                    log({
+                      mod: "agent",
+                      level: "debug",
+                      event: "onBeforeCall_error",
+                      error: (e as Error).message,
+                    });
+                  }
+                  // Tool calls will be recorded after the full response is complete
+                  break;
+                }
+                case "tool-result": {
+                  // Auto-executed tool result from SDK: forward to afterCall and store for history
+                  const tr = part as unknown as {
+                    type: "tool-result";
+                    toolCallId: string;
+                    result: unknown;
+                    toolName?: string;
+                  };
+                  const pending = pendingToolCalls.find(
+                    (p) => p.toolCallId === tr.toolCallId,
+                  );
+                  const resolvedToolName = tr.toolName ?? pending?.toolName ?? "";
+                  const toolName: string = String(resolvedToolName);
+                  const toolOutput: LanguageModelV2ToolResultOutput = tr
+                    .result as LanguageModelV2ToolResultOutput;
+
+                  // Store tool result for later recording in history
+                  completedToolResults.push({
+                    toolCallId: tr.toolCallId,
+                    toolName,
+                    output: toolOutput,
+                  });
+
+                  try {
+                    onAfterCall?.(tr.result as TypedToolResult<ToolSet>);
+                  } catch (e) {
+                    log({
+                      mod: "agent",
+                      level: "debug",
+                      event: "onAfterCall_error",
+                      error: (e as Error).message,
+                    });
+                  }
+                  break;
+                }
+                case "error": {
+                  const error = part.error;
                   log({
                     mod: "agent",
-                    level: "debug",
-                    event: "onThoughts_error",
-                    error: (e as Error).message,
+                    level: "error",
+                    event: "streamText_error",
+                    error: (error as Error).message,
                   });
+                  throw new Error("Stream error");
                 }
+                case "abort": {
+                  log({
+                    mod: "agent",
+                    level: "error",
+                    event: "streamText_abort",
+                  });
+                  throw new Error("Stream aborted");
+                }
+                case "tool-error": {
+                  log({
+                    mod: "agent",
+                    level: "error",
+                    event: "streamText_tool_error",
+                  });
+                  throw new Error("Stream tool error");
+                }
+                case "finish": {
+                  break;
+                }
+                default:
+                  // ignore other stream parts (start, tool-call-delta, metadata, etc.)
+                  break;
               }
-              seenTool = true;
-
-              const toolCallForHook: TypedToolCall<ToolSet> = {
-                type: "tool-call",
-                toolCallId: tc.toolCallId,
-                toolName: tc.toolName as unknown as string,
-                input: tc.input,
-              };
-              const toolCallForPending = {
-                toolCallId: tc.toolCallId,
-                toolName: tc.toolName,
-                input: tc.input,
-              };
-              pendingToolCalls.push(toolCallForPending);
-              try {
-                onBeforeCall?.(toolCallForHook);
-              } catch (e) {
-                log({
-                  mod: "agent",
-                  level: "debug",
-                  event: "onBeforeCall_error",
-                  error: (e as Error).message,
-                });
-              }
-              // Tool calls will be recorded after the full response is complete
-              break;
             }
-            case "tool-result": {
-              // Auto-executed tool result from SDK: forward to afterCall and store for history
-              const tr = part as unknown as {
-                type: "tool-result";
-                toolCallId: string;
-                result: unknown;
-                toolName?: string;
-              };
-              const pending = pendingToolCalls.find(
-                (p) => p.toolCallId === tr.toolCallId,
-              );
-              const resolvedToolName = tr.toolName ?? pending?.toolName ?? "";
-              const toolName: string = String(resolvedToolName);
-              const toolOutput: LanguageModelV2ToolResultOutput = tr
-                .result as LanguageModelV2ToolResultOutput;
-
-              // Store tool result for later recording in history
-              completedToolResults.push({
-                toolCallId: tr.toolCallId,
-                toolName,
-                output: toolOutput,
-              });
-
-              try {
-                onAfterCall?.(tr.result as TypedToolResult<ToolSet>);
-              } catch (e) {
-                log({
-                  mod: "agent",
-                  level: "debug",
-                  event: "onAfterCall_error",
-                  error: (e as Error).message,
-                });
-              }
-              break;
-            }
-            case "error": {
-              const error = part.error;
-              log({
-                mod: "agent",
-                level: "error",
-                event: "streamText_error",
-                error: (error as Error).message,
-              });
-              throw new Error("Stream error");
-            }
-            case "abort": {
-              log({
-                mod: "agent",
-                level: "error",
-                event: "streamText_abort",
-              });
-              throw new Error("Stream aborted");
-            }
-            case "tool-error": {
-              log({
-                mod: "agent",
-                level: "error",
-                event: "streamText_tool_error",
-              });
-              throw new Error("Stream tool error");
-            }
-            case "finish": {
-              break;
-            }
-            default:
-              // ignore other stream parts (start, tool-call-delta, metadata, etc.)
-              break;
+          } catch (error) {
+            log({
+              mod: "agent",
+              level: "error",
+              event: "streamText_error",
+              error: (error as Error).message,
+            });
+            throw error;
           }
-        }
-      } catch (error) {
-        log({
-          mod: "agent",
-          level: "error",
-          event: "streamText_error",
-          error: (error as Error).message,
-        });
-        throw error;
-      }
 
-      // Messages are now recorded in onStepFinish callback
+          // Messages are now recorded in onStepFinish callback
 
-      // Deno.writeTextFileSync("messages.json", JSON.stringify(await stream.response, null, 2));
+          // Deno.writeTextFileSync("messages.json", JSON.stringify(await stream.response, null, 2));
 
-      const lastStepText = await text;
-      const cost = this.costCalculator.calcCosts(await totalUsage);
+          const lastStepText = await text;
+          const cost = this.costCalculator.calcCosts(await totalUsage);
 
-      log({
-        mod: "agent",
-        event: "process_user_query_success",
-        correlationId,
-        responseLength: lastStepText.length,
-      });
+          log({
+            mod: "agent",
+            event: "process_user_query_success",
+            correlationId,
+            responseLength: lastStepText.length,
+          });
 
-      return { text: lastStepText, cost: cost };
+          return { text: lastStepText, cost: cost };
+        },
+        { opName: "llm_generate_text" },
+      );
     } catch (error) {
       log({
         mod: "agent",
