@@ -1,14 +1,14 @@
 /**
- * Tests for SimpleContextCompactor
+ * Tests for SimpleHistoryCompactor
  * Tests message trimming and tool-call/tool-result consistency
  */
 
 import { assertEquals } from "@std/assert";
-import { SimpleContextCompactor } from "./compactor.ts";
+import { SimpleHistoryCompactor } from "./compactor.ts";
 import { ModelMessage } from "ai";
 
-Deno.test("ContextCompactor: trims messages by symbol limit", () => {
-  const compactor = new SimpleContextCompactor(50); // Small limit
+Deno.test("HistoryCompactor: trims messages by symbol limit", () => {
+  const compactor = new SimpleHistoryCompactor(50); // Small limit
 
   const messages: ModelMessage[] = [
     { role: "user", content: "Short message" },
@@ -25,8 +25,8 @@ Deno.test("ContextCompactor: trims messages by symbol limit", () => {
   assertEquals(result[0].content, "Another message");
 });
 
-Deno.test("ContextCompactor: preserves tool-call/tool-result consistency", () => {
-  const compactor = new SimpleContextCompactor(1000);
+Deno.test("HistoryCompactor: preserves tool-call/tool-result consistency", () => {
+  const compactor = new SimpleHistoryCompactor(1000);
 
   const toolCallId = "call_123";
   const messages: ModelMessage[] = [
@@ -58,8 +58,8 @@ Deno.test("ContextCompactor: preserves tool-call/tool-result consistency", () =>
   assertEquals(result[1].role, "tool");
 });
 
-Deno.test("ContextCompactor: removes orphaned tool-result", () => {
-  const compactor = new SimpleContextCompactor(1000);
+Deno.test("HistoryCompactor: removes orphaned tool-result", () => {
+  const compactor = new SimpleHistoryCompactor(1000);
 
   const messages: ModelMessage[] = [
     {
@@ -79,8 +79,8 @@ Deno.test("ContextCompactor: removes orphaned tool-result", () => {
   assertEquals(result.length, 0);
 });
 
-Deno.test("ContextCompactor: removes orphaned tool-call", () => {
-  const compactor = new SimpleContextCompactor(1000);
+Deno.test("HistoryCompactor: removes orphaned tool-call", () => {
+  const compactor = new SimpleHistoryCompactor(1000);
 
   const messages: ModelMessage[] = [
     {
@@ -100,8 +100,8 @@ Deno.test("ContextCompactor: removes orphaned tool-call", () => {
   assertEquals(result.length, 0);
 });
 
-Deno.test("ContextCompactor: handles mixed consistent and orphaned messages", () => {
-  const compactor = new SimpleContextCompactor(1000);
+Deno.test("HistoryCompactor: handles mixed consistent and orphaned messages", () => {
+  const compactor = new SimpleHistoryCompactor(1000);
 
   const consistentId = "consistent_call";
   const orphanedId = "orphaned_call";
@@ -146,8 +146,8 @@ Deno.test("ContextCompactor: handles mixed consistent and orphaned messages", ()
   assertEquals(result[2].role, "tool");
 });
 
-Deno.test("ContextCompactor: trims messages by symbol limit", () => {
-  const compactor = new SimpleContextCompactor(50); // Very small limit
+Deno.test("HistoryCompactor: trims messages by symbol limit", () => {
+  const compactor = new SimpleHistoryCompactor(50); // Very small limit
 
   const messages: ModelMessage[] = [
     { role: "user", content: "This is a very long message that will exceed the symbol limit" },
@@ -165,8 +165,8 @@ Deno.test("ContextCompactor: trims messages by symbol limit", () => {
   assertEquals(totalLength <= 50, true);
 });
 
-Deno.test("ContextCompactor: handles malformed JSON in complex content gracefully", () => {
-  const compactor = new SimpleContextCompactor(1000);
+Deno.test("HistoryCompactor: handles malformed JSON in complex content gracefully", () => {
+  const compactor = new SimpleHistoryCompactor(1000);
 
   // Create malformed/non-serializable content and ensure no crash
   const circular: { self?: unknown } = {};
@@ -180,8 +180,8 @@ Deno.test("ContextCompactor: handles malformed JSON in complex content gracefull
   assertEquals(Array.isArray(result), true);
 });
 
-Deno.test("ContextCompactor: trimming preserves tool-call/tool-result consistency", () => {
-  const compactor = new SimpleContextCompactor(200); // Small limit to force trimming
+Deno.test("HistoryCompactor: trimming preserves tool-call/tool-result consistency", () => {
+  const compactor = new SimpleHistoryCompactor(200); // Small limit to force trimming
 
   // Add many messages to exceed limit
   const messages: ModelMessage[] = [];
@@ -242,8 +242,8 @@ Deno.test("ContextCompactor: trimming preserves tool-call/tool-result consistenc
   }
 });
 
-Deno.test("ContextCompactor: trimming removes tool-result when tool-call is trimmed away", () => {
-  const compactor = new SimpleContextCompactor(150); // Very small limit to force aggressive trimming
+Deno.test("HistoryCompactor: trimming removes tool-result when tool-call is trimmed away", () => {
+  const compactor = new SimpleHistoryCompactor(150); // Very small limit to force aggressive trimming
 
   // Add many messages to exceed limit significantly
   const messages: ModelMessage[] = [];
@@ -311,8 +311,8 @@ Deno.test("ContextCompactor: trimming removes tool-result when tool-call is trim
   );
 });
 
-Deno.test("ContextCompactor: trimming removes orphaned tool-result when tool-call is not included", () => {
-  const compactor = new SimpleContextCompactor(300); // Small limit
+Deno.test("HistoryCompactor: trimming removes orphaned tool-result when tool-call is not included", () => {
+  const compactor = new SimpleHistoryCompactor(300); // Small limit
 
   // Add some messages
   const messages: ModelMessage[] = [];
@@ -384,8 +384,8 @@ Deno.test("ContextCompactor: trimming removes orphaned tool-result when tool-cal
   }
 });
 
-Deno.test("ContextCompactor: estimateSymbols handles different content types", () => {
-  const compactor = new SimpleContextCompactor(1000);
+Deno.test("HistoryCompactor: estimateSymbols handles different content types", () => {
+  const compactor = new SimpleHistoryCompactor(1000);
 
   // Test string content
   const stringMessage = { role: "user" as const, content: "Hello world" };
@@ -402,8 +402,8 @@ Deno.test("ContextCompactor: estimateSymbols handles different content types", (
   assertEquals(complexSymbols > 0, true);
 });
 
-Deno.test("ContextCompactor: handles assistant message with mixed tool-call consistency", () => {
-  const compactor = new SimpleContextCompactor(1000);
+Deno.test("HistoryCompactor: handles assistant message with mixed tool-call consistency", () => {
+  const compactor = new SimpleHistoryCompactor(1000);
 
   const consistentId = "consistent_call";
   const orphanedId = "orphaned_call";
@@ -449,8 +449,8 @@ Deno.test("ContextCompactor: handles assistant message with mixed tool-call cons
   assertEquals(Array.isArray(result[0].content), true);
 });
 
-Deno.test("ContextCompactor: preserves consistency over symbol limit when trimming", () => {
-  const compactor = new SimpleContextCompactor(100); // Very small limit
+Deno.test("HistoryCompactor: preserves consistency over symbol limit when trimming", () => {
+  const compactor = new SimpleHistoryCompactor(100); // Very small limit
 
   const toolCallId = "important_call";
   const messages: ModelMessage[] = [
@@ -508,8 +508,8 @@ Deno.test("ContextCompactor: preserves consistency over symbol limit when trimmi
   }
 });
 
-Deno.test("ContextCompactor: handles tool message with multiple tool-results", () => {
-  const compactor = new SimpleContextCompactor(1000);
+Deno.test("HistoryCompactor: handles tool message with multiple tool-results", () => {
+  const compactor = new SimpleHistoryCompactor(1000);
 
   const consistentId = "consistent_call";
   const orphanedId = "orphaned_call";
@@ -550,8 +550,8 @@ Deno.test("ContextCompactor: handles tool message with multiple tool-results", (
   assertEquals(result[0].role, "assistant");
 });
 
-Deno.test("ContextCompactor: consistency check preserves non-tool messages regardless of tool consistency", () => {
-  const compactor = new SimpleContextCompactor(1000);
+Deno.test("HistoryCompactor: consistency check preserves non-tool messages regardless of tool consistency", () => {
+  const compactor = new SimpleHistoryCompactor(1000);
 
   const messages: ModelMessage[] = [
     { role: "system", content: "System prompt" },
@@ -578,8 +578,8 @@ Deno.test("ContextCompactor: consistency check preserves non-tool messages regar
   assertEquals(result[2].content, "Assistant response");
 });
 
-Deno.test("ContextCompactor: handles empty content arrays gracefully", () => {
-  const compactor = new SimpleContextCompactor(1000);
+Deno.test("HistoryCompactor: handles empty content arrays gracefully", () => {
+  const compactor = new SimpleHistoryCompactor(1000);
 
   const messages: ModelMessage[] = [
     { role: "assistant", content: [] }, // Empty content array
@@ -593,8 +593,8 @@ Deno.test("ContextCompactor: handles empty content arrays gracefully", () => {
   assertEquals(result.length, 3);
 });
 
-Deno.test("ContextCompactor: handles non-array content in tool roles", () => {
-  const compactor = new SimpleContextCompactor(1000);
+Deno.test("HistoryCompactor: handles non-array content in tool roles", () => {
+  const compactor = new SimpleHistoryCompactor(1000);
 
   const messages: ModelMessage[] = [
     { role: "tool", content: [] }, // Empty array instead of string, but still invalid for tool role

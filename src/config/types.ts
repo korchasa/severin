@@ -39,6 +39,7 @@ export interface MetricsConfig {
 
 export interface HistoryConfig {
   readonly maxSymbols: number;
+  readonly summaryTokenThreshold?: number;
 }
 
 export interface ToolConfig {
@@ -86,6 +87,7 @@ export const configSchema = z.object({
     dataDir: z.string(),
     history: z.object({
       maxSymbols: z.number().int().positive(),
+      summaryTokenThreshold: z.number().int().positive().optional(),
     }),
     terminal: z.object({
       timeoutMs: z.number().int().positive(),

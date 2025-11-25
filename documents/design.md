@@ -237,6 +237,9 @@ interface CommandDef<A> {
     final context, its corresponding tool-call message is also included, and vice versa. Prevents
     orphaned tool results or tool calls that reference non-existent results.
   - Symbol trimming starts from most recent messages (end of array) and works backwards.
+- **Architecture:** Unified `HistoryCompactor` interface with two implementations:
+  `SimpleHistoryCompactor` (symbol-based trimming) and `SummarizingHistoryCompactor` (LLM-powered
+  compression for future use).
 
 ### 4.6. Scheduler + Singleflight
 

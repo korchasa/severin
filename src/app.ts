@@ -16,6 +16,8 @@ import { createTextMessageHandler } from "./telegram/handlers/text-message-handl
 import { collectSystemInfo } from "./system-info/info-collector.ts";
 import { createAuditTask } from "./agent/audit-task.ts";
 import { ContextBuilder } from "./agent/context/builder.ts";
+import { SimpleHistoryCompactor, SummarizingHistoryCompactor } from "./agent/context/compactor.ts";
+import { SummaryGenerator } from "./agent/context/summary-generator.ts";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createDiagnoseTask } from "./agent/diagnose-task.ts";
 import { createTerminalTool } from "./agent/tools/terminal.ts";
@@ -71,8 +73,18 @@ export async function startAgent(): Promise<void> {
   // Initialize agent (encapsulates LLM, history, tools)
   const llmProvider = createOpenAI({ apiKey: config.agent.llm.apiKey });
   const llmModel = llmProvider(config.agent.llm.model);
+
+  // Create history compactor - either simple or with LLM summarization
+  const historyCompactor = config.agent.history.summaryTokenThreshold !== undefined
+    ? new SummarizingHistoryCompactor(
+      config.agent.history.maxSymbols,
+      config.agent.history.summaryTokenThreshold,
+      new SummaryGenerator(llmModel),
+    )
+    : new SimpleHistoryCompactor(config.agent.history.maxSymbols);
+
   const contextBuilder = new ContextBuilder(
-    config.agent.history.maxSymbols,
+    historyCompactor,
     systemInfo,
     factsStorage,
   );
@@ -86,6 +98,7 @@ export async function startAgent(): Promise<void> {
     factsStorage,
     costCalculator,
     dataDir: config.agent.dataDir,
+    maxHistorySymbols: config.agent.history.maxSymbols,
   });
   const auditTask = createAuditTask({
     llmModel,
